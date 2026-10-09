@@ -87,13 +87,13 @@ function applyPlan(s) {
 function seed() {
   return applyPlan({
     v: 2, exercises: [], workouts: [], schedule: [null, null, null, null, null, null, null], overrides: {}, logs: [],
-    extras: [], shifts: {}, body: {}, deloadDate: null,
+    shifts: {}, body: {}, deloadDate: null,
     settings: { inc: 2.5, rest: 120, height: 187 },
   });
 }
 function fill(s) {
   s.v = 2;
-  s.extras ||= []; s.shifts ||= {}; s.body ||= {}; s.overrides ||= {};
+  s.shifts ||= {}; s.body ||= {}; s.overrides ||= {};
   s.schedule ||= [null, null, null, null, null, null, null];
   s.settings = { inc: 2.5, rest: 120, height: 187, ...s.settings };
   delete s.settings.sleepAt; delete s.protein;
@@ -254,9 +254,8 @@ function viewCal() {
     let cls = 'none';
     if (type) cls = (type === 'run' ? 'run' : '') + (dl ? ' done' : date < t ? ' miss' : '');
     if (dl) { dl.type === 'run' ? (doneR++, km += num(dl.run.dist)) : doneS++; }
-    const ex = state.extras.some(x => x.date === date);
     const tag = sh ? `<em class="sh">${sh}</em>` : an ? '<em class="sh">zZ</em>' : '';
-    cells += `<button class="d ${date === t ? 'today' : ''} ${an ? 'an' : ''} ${sh ? 'shift' : ''} ${goodWindow(date) ? 'win' : ''}" data-act="day" data-date="${date}">${tag}${d}<span class="dots"><i class="dot ${cls}"></i>${ex ? '<i class="dot x done"></i>' : ''}</span></button>`;
+    cells += `<button class="d ${date === t ? 'today' : ''} ${an ? 'an' : ''} ${sh ? 'shift' : ''} ${goodWindow(date) ? 'win' : ''}" data-act="day" data-date="${date}">${tag}${d}<span class="dots"><i class="dot ${cls}"></i></span></button>`;
   }
   const title = cap(first.toLocaleDateString('pl-PL', { month: 'long', year: 'numeric' }));
   const nx = nextRot(), tw = dayWorkout(t), pp = weekPushPull();
@@ -267,11 +266,104 @@ function viewCal() {
   <div class="cal-h"><button data-act="calPrev">‹</button><b>${title}</b><button data-act="calNext">›</button></div>
   <div class="seg"><button class="${ui.shiftMode ? 'on' : ''}" data-act="shiftMode">${ui.shiftMode ? '✔ Gotowe – wróć do kalendarza' : '✏️ Wpisz grafik pracy (dotknij dni: D → N → wolne)'}</button></div>
   <div class="cal">${cells}</div>
-  <div class="legend"><span><i class="dot done"></i>siła</span><span><i class="dot run done"></i>bieg</span><span><i class="dot x done"></i>inne (BJJ)</span><span><i class="dot"></i>plan</span><span><i class="dot miss"></i>ominięty</span><span><b>D</b> służba dzienna</span><span><b>N</b> nocka</span><span><b>zZ</b> po nocce (bez siłowni)</span><span class="winl">zielone tło = dobre okno na siłownię</span></div>
+  <div class="legend"><span><i class="dot done"></i>siła</span><span><i class="dot run done"></i>bieg</span><span><i class="dot"></i>plan</span><span><i class="dot miss"></i>ominięty</span><span><b>D</b> służba dzienna</span><span><b>N</b> nocka</span><span><b>zZ</b> po nocce (bez siłowni)</span><span class="winl">zielone tło = dobre okno na siłownię</span></div>
   <div class="stats"><div><b>${doneS}</b><small>treningi siłowe</small></div><div><b>${doneR}</b><small>biegi</small></div><div><b>${kg(km)}</b><small>km w miesiącu</small></div></div>
   <div class="card row sp"><div><small>Dziś, ${longDate(t)}</small><h3>${tw ? esc(tw.name) : 'Nic nie zaplanowane'}</h3><small>Następny w kolejce: <b>${nx ? esc(nx.name) : '–'}</b></small></div><button class="pri" data-act="tab" data-tab="today">Otwórz</button></div>
   ${pp.push + pp.pull ? `<div class="card"><small>Ostatnie 7 dni – serie ciągnięcia : pchania</small><h3>${pp.pull} : ${pp.push} ${pp.pull >= pp.push ? '✅' : '⚠️ dołóż ciągnięcie (cel ≥1:1)'}</h3></div>` : ''}
   ${wk >= 6 ? `<div class="card"><small>Deload</small><p style="margin:4px 0">Minęło ${wk} tyg. od ${state.deloadDate ? 'ostatniego deloadu' : 'startu'}. Zrób deload (1 tydzień, objętość −40–50%, ten sam ciężar), jeśli widzisz 2 sygnały naraz: wyniki spadają przez 2 sesje, RIR rośnie przy tym samym ciężarze, rośnie tętno spoczynkowe albo bolą stawy.</p><div class="btns"><button data-act="deload">Zaczynam deload / zeruj licznik</button></div></div>` : ''}`;
+}
+
+/* ---------- rozgrzewka ---------- */
+const WARM_RUN = ['Biodra: krążenia 10×/stronę, wykroki z rotacją 6×/stronę', '10 min truchtu w tempie rozmownym', 'Skipy i wymachy nóg 2×20 m', '3–4 przebieżki po 20 s (ok. 90% tempa), powrót marszem'];
+const WARM_A = ['Biodra i kostki: głęboki przysiad z pauzą 2×30 s, krążenia bioder 10×/stronę', 'Pośladki: mostek biodrowy 2×12', 'Barki i łopatki: rotacje zewnętrzne z gumą 2×15, 10× podciągnięcie samych łopatek w zwisie'];
+const PLAN_WARM = {
+  'Trening A': WARM_A,
+  'Trening B': ['Zawias: good morning z kijem lub pustym gryfem 2×10, mostek biodrowy 2×12', 'Barki: rotacje zewnętrzne z gumą 2×15, otwarcia klatki 2×10', 'Łopatki: 10× podciągnięcie samych łopatek w zwisie'],
+  'Wersja łączona (tydzień z 1 oknem)': WARM_A,
+  'Minimum (30–40 min)': ['Biodra i barki: głęboki przysiad z pauzą 1×30 s, rotacje zewnętrzne z gumą 1×15'],
+  'Bieg spokojny': ['5 min szybkiego marszu', 'Biodra: krążenia 10×/stronę, wykroki z rotacją 6×/stronę', 'Pierwsze 5 min biegu wolniej niż docelowo'],
+  'Interwały': WARM_RUN,
+  'Test 3 km': WARM_RUN,
+};
+const WARM_GEN = '5 min lekkiego ruchu (rower, wioślarz albo szybki marsz) – tętno lekko w górę, bez zadyszki';
+const r25 = x => Math.round(x / 2.5) * 2.5;
+function warmup(l, w) { // ogólne punkty + serie dochodzące do ciężaru roboczego dla 3 pierwszych ćwiczeń
+  const lines = w.type === 'run' ? (PLAN_WARM[w.name] || ['5 min szybkiego marszu', '5 min truchtu']) : [WARM_GEN, ...(PLAN_WARM[w.name] || [])];
+  const ramps = [];
+  if (l.type === 'strength') {
+    for (const e of l.entries.slice(0, 3)) {
+      const ex = exById(e.exId), top = e.sets[0]?.w || 0;
+      let txt;
+      if (ex?.bw && !top) txt = '2 serie po 3–4 powtórzenia, spokojnie, pełny zakres';
+      else if (!top) txt = 'Gdy wybierzesz ciężar roboczy: 50% × 5, 70% × 3, 85% × 1 (wpisz go poniżej w pierwszej serii)';
+      else {
+        const steps = [[.5, 5], [.7, 3], [.85, 1]].map(([f, n]) => [r25(top * f), n]).filter(([x], i, a) => x > 0 && x < top && a.findIndex(y => y[0] === x) === i);
+        txt = steps.map(([x, n]) => `${kg(x)} × ${n}`).join(' → ') + ` → robocze ${kg(top)}`;
+      }
+      ramps.push([ex?.name || '?', txt]);
+    }
+  }
+  return { lines, ramps };
+}
+
+/* ---------- widok dnia ---------- */
+function exCard(l, w, ei) {
+  const e = l.entries[ei], date = l.date, ex = exById(e.exId);
+  const it = w?.items.find(i => i.exId === e.exId) || { exId: e.exId, sets: e.sets.length, repMin: 5, repMax: 10 };
+  const last = lastSession(e.exId, date), pr = progression(it, last), u = unitOf(e.exId);
+  let hint, hc = '';
+  if (!last) hint = ex?.start ? `Pierwszy raz – punkt startowy z planu: ${kg(ex.start)} kg. Dopasuj do siebie (RIR 2–3).` : 'Pierwszy raz – dobierz ciężar tak, by zostało RIR 2–3.';
+  else if (pr.up) { hint = `↑ Wszystkie serie na górze zakresu przy RIR ≥2 – dziś +${kg(exInc(e.exId))} kg`; hc = 'up'; }
+  else if (pr.blocked) hint = 'Górny zakres był, ale RIR <2 – zostań przy tym ciężarze, wróć do RIR 2–3.';
+  else hint = `Cel: ${it.repMax} ${u} we wszystkich seriach przy RIR ≥2, potem podnieś ciężar`;
+  if (stagnant(e.exId, date)) hint += ' · ⚠️ 3 sesje bez progresu: zmień zakres/wariant albo zrób deload.';
+  const prev = last ? `Ostatnio (${shortDate(last.date)}): ${last.sets.map(s => `${kg(s.w)}×${s.r}${s.x != null ? ` @${s.x}` : ''}`).join(', ')}` : '';
+  const rows = e.sets.map((s, si) => `<div class="set ${s.d ? 'done' : ''}"><span>${si + 1}</span>
+    <input inputmode="decimal" data-f="w" data-e="${ei}" data-s="${si}" value="${s.w ? kg(s.w) : ''}" placeholder="${ex?.bw ? 'MC' : 'kg'}">
+    <input inputmode="numeric" data-f="r" data-e="${ei}" data-s="${si}" value="${s.r || ''}" placeholder="${u === 'm' ? 'm' : 'powt.'}">
+    <input inputmode="numeric" data-f="x" data-e="${ei}" data-s="${si}" value="${s.x ?? ''}" placeholder="RIR">
+    <button data-act="tog" data-e="${ei}" data-s="${si}">✓</button></div>`).join('');
+  return `<section class="card"><div class="row sp"><h3 data-act="openEx" data-id="${e.exId}">${esc(ex?.name || '?')}</h3><small>${it.sets}×${it.repMin}${it.repMax !== it.repMin ? '–' + it.repMax : ''}${it.rir ? ` · RIR ${it.rir}` : ''}</small></div>
+    <div class="hint ${hc}">${hint}</div><div class="hint">${prev}</div>
+    <div class="sets"><div class="set hd"><span>#</span><span>${ex?.bw ? 'kg (0 = masa ciała)' : 'kg'}</span><span>${u}</span><span>RIR</span><span></span></div>${rows}</div>
+    <div class="btns"><button data-act="addSet" data-e="${ei}">+ seria</button><button data-act="delSet" data-e="${ei}">− seria</button></div></section>`;
+}
+const addExSel = l => `<div class="card"><div class="f" style="margin:0"><label>Dodaj ćwiczenie do tego treningu</label>
+  <select data-act="addEx"><option value="">wybierz…</option>${state.exercises.filter(e => !l.entries.some(x => x.exId === e.id)).map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></div></div>`;
+
+function viewStrength(l, w) {
+  const n = l.entries.length, vol = l.entries.reduce((a, e) => a + volume(e.sets.filter(s => s.d)), 0);
+  const mode = l.status === 'live' ? 'live' : (l.status === 'done' || logDone(l)) ? 'sum' : 'pre';
+  if (mode === 'pre') {
+    const rows = l.entries.map(e => {
+      const it = w.items.find(i => i.exId === e.exId), s = e.sets[0], ex = exById(e.exId);
+      return `<div class="li"><div class="grow"><b>${esc(ex?.name || '?')}</b><small>${e.sets.length}×${it ? it.repMin + (it.repMax !== it.repMin ? '–' + it.repMax : '') : ''}${it?.rir ? ` · RIR ${it.rir}` : ''}</small></div><span class="chip">${s.w ? kg(s.w) + ' kg' : ex?.bw ? 'MC' : '–'} × ${s.r}</span></div>`;
+    }).join('');
+    return `<div class="card" style="padding:4px 14px">${w.note ? `<p class="muted">${esc(w.note)}</p>` : ''}${rows}</div>
+      <button class="pri big" data-act="start">▶ Start</button>${addExSel(l)}`;
+  }
+  if (mode === 'sum') {
+    const rows = l.entries.map(e => {
+      const sets = e.sets.filter(s => s.d);
+      return `<div class="li"><div class="grow"><b>${esc(exById(e.exId)?.name || '?')}</b><small>${sets.length ? sets.map(s => `${kg(s.w)}×${s.r}${s.x != null ? ` @${s.x}` : ''}`).join(' · ') : 'nie zrobione'}</small></div></div>`;
+    }).join('');
+    return `<div class="card" style="padding:4px 14px">${rows}</div><p class="muted" style="text-align:center">Objętość: <b>${Math.round(vol)}</b> kg</p>
+      <button class="big" data-act="resume">Wznów / edytuj wyniki</button>`;
+  }
+  // live
+  const step = Math.max(0, Math.min(n + 1, l.step || 0));
+  const chips = `<div class="steps">${['🔥', ...l.entries.map((_, i) => i + 1)].map((t, i) => `<button class="${i === step ? 'on' : ''} ${i > 0 && l.entries[i - 1].sets.every(s => s.d) ? 'ok' : ''}" data-act="step" data-i="${i}">${t}</button>`).join('')}</div>`;
+  let main;
+  if (step === 0) {
+    const wu = warmup(l, w);
+    main = `<section class="card"><h3>🔥 Rozgrzewka – ${esc(w.name)}</h3>
+      ${wu.lines.map((t, i) => `<div class="wu ${l.wu?.['g' + i] ? 'on' : ''}" data-act="wuTog" data-k="g${i}"><i></i><span>${esc(t)}</span></div>`).join('')}
+      ${wu.ramps.length ? `<h3 style="margin-top:14px">Serie dochodzące do ciężaru roboczego</h3><p class="muted" style="margin:2px 0 8px">Spokojnie, 1–2 min przerwy, bez zmęczenia przed seriami roboczymi.</p>
+      ${wu.ramps.map(([nm, t], i) => `<div class="wu ${l.wu?.['r' + i] ? 'on' : ''}" data-act="wuTog" data-k="r${i}"><i></i><span><b>${esc(nm)}</b><br><small>${esc(t)}</small></span></div>`).join('')}` : ''}</section>`;
+  } else if (step <= n) main = exCard(l, w, step - 1) + (step === n ? addExSel(l) : '');
+  else main = `<section class="card"><h3>Koniec treningu 💪</h3><p class="muted">Objętość: <b>${Math.round(vol)}</b> kg</p></section>`;
+  const nxt = step < n ? `Dalej: ${esc(exById(l.entries[step].exId)?.name || '')} →` : step === n ? 'Zakończ trening ✓' : 'Zapisz i zamknij ✓';
+  return `${chips}${main}<div class="btns">${step > 0 ? `<button data-act="step" data-i="${step - 1}">← Wstecz</button>` : ''}<button class="pri" data-act="${step < n ? 'step' : 'finish'}" data-i="${step + 1}">${nxt}</button></div>`;
 }
 
 function viewDay() {
@@ -290,8 +382,6 @@ function viewDay() {
   if (strength) {
     const n = near48(date);
     if (n) bn += banner('warn', `Mniej niż 48 h od innego treningu siłowego (${shortDate(n)}). Przesuń albo zmniejsz objętość.`);
-    const y = state.extras.find(x => x.date === addDays(date, -1) && (x.rpe >= 6 || /bjj/i.test(x.name)));
-    if (y) bn += banner('warn', `Wczoraj: ${esc(y.name)}. Przy tym treningu obniż objętość nóg o ok. 30% albo przesuń trening.`);
   }
   if (w?.warn) bn += banner('warn', esc(w.warn));
 
@@ -304,52 +394,20 @@ function viewDay() {
       <p class="muted">${an ? 'Wg raportu bez siłowni – odpoczynek, spacer albo najwyżej lekki bieg.' : 'Wybierz trening. Kolejka A→B→A→B przesuwa się tylko po zrobionych A/B.'}</p>
       ${!an && nx ? `<div class="btns">${btn(nx, true)}</div><p class="muted" style="margin:4px 0 8px">↑ następny w kolejce</p>` : ''}
       <div class="chips">${others.map(x => btn(x, false)).join('')}<button data-act="plan" data-wid="rest">Odpoczynek</button></div></div>`;
-  } else if (l.type === 'run') {
-    body = viewRun(l, w);
-  } else {
-    body = l.entries.map((e, ei) => {
-      const ex = exById(e.exId);
-      const it = w?.items.find(i => i.exId === e.exId) || { exId: e.exId, sets: e.sets.length, repMin: 5, repMax: 10 };
-      const last = lastSession(e.exId, date), pr = progression(it, last), u = unitOf(e.exId);
-      let hint, hc = '';
-      if (!last) hint = ex?.start ? `Pierwszy raz – punkt startowy z planu: ${kg(ex.start)} kg. Dopasuj do siebie (RIR 2–3).` : 'Pierwszy raz – dobierz ciężar tak, by zostało RIR 2–3.';
-      else if (pr.up) { hint = `↑ Wszystkie serie na górze zakresu przy RIR ≥2 – dziś +${kg(exInc(e.exId))} kg`; hc = 'up'; }
-      else if (pr.blocked) hint = 'Górny zakres był, ale RIR <2 – zostań przy tym ciężarze, wróć do RIR 2–3.';
-      else hint = `Cel: ${it.repMax} ${u} we wszystkich seriach przy RIR ≥2, potem podnieś ciężar`;
-      if (stagnant(e.exId, date)) hint += ' · ⚠️ 3 sesje bez progresu: zmień zakres/wariant albo zrób deload.';
-      const prev = last ? `Ostatnio (${shortDate(last.date)}): ${last.sets.map(s => `${kg(s.w)}×${s.r}${s.x != null ? ` @${s.x}` : ''}`).join(', ')}` : '';
-      const rows = e.sets.map((s, si) => `<div class="set ${s.d ? 'done' : ''}"><span>${si + 1}</span>
-        <input inputmode="decimal" data-f="w" data-e="${ei}" data-s="${si}" value="${s.w ? kg(s.w) : ''}" placeholder="${ex?.bw ? 'MC' : 'kg'}">
-        <input inputmode="numeric" data-f="r" data-e="${ei}" data-s="${si}" value="${s.r || ''}" placeholder="${u === 'm' ? 'm' : 'powt.'}">
-        <input inputmode="numeric" data-f="x" data-e="${ei}" data-s="${si}" value="${s.x ?? ''}" placeholder="RIR">
-        <button data-act="tog" data-e="${ei}" data-s="${si}">✓</button></div>`).join('');
-      return `<section class="card"><div class="row sp"><h3 data-act="openEx" data-id="${e.exId}">${esc(ex?.name || '?')}</h3><small>${it.sets}×${it.repMin}${it.repMax !== it.repMin ? '–' + it.repMax : ''}${it.rir ? ` · RIR ${it.rir}` : ''}</small></div>
-        <div class="hint ${hc}">${hint}</div><div class="hint">${prev}</div>
-        <div class="sets"><div class="set hd"><span>#</span><span>${ex?.bw ? 'kg (0 = masa ciała)' : 'kg'}</span><span>${u}</span><span>RIR</span><span></span></div>${rows}</div>
-        <div class="btns"><button data-act="addSet" data-e="${ei}">+ seria</button><button data-act="delSet" data-e="${ei}">− seria</button></div></section>`;
-    }).join('');
-    const used = new Set(l.entries.map(e => e.exId));
-    const extra = state.exercises.filter(e => !used.has(e.id));
-    const vol = l.entries.reduce((a, e) => a + volume(e.sets.filter(s => s.d)), 0);
-    body += `<div class="card"><div class="f" style="margin:0"><label>Dodaj ćwiczenie do tego treningu</label>
-      <select data-act="addEx"><option value="">wybierz…</option>${extra.map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></div></div>
-      <p class="muted" style="text-align:center">Objętość: <b>${Math.round(vol)}</b> kg</p>`;
-  }
+  } else if (l.type === 'run') body = viewRun(l, w);
+  else body = viewStrength(l, w);
   const done = logDone(l);
-  const extras = state.extras.filter(x => x.date === date);
-  const ex = `<h2>Dodatkowa aktywność</h2><div class="card">${extras.map(x => `<div class="li"><div class="grow"><b>${esc(x.name)}</b><small>${x.min} min · RPE ${x.rpe}</small></div><button class="ghost dng" data-act="delExtra" data-id="${x.id}">✕</button></div>`).join('')}
-    <div class="ed3"><input id="xname" value="BJJ" aria-label="nazwa"><input id="xmin" inputmode="numeric" placeholder="min"><input id="xrpe" inputmode="numeric" placeholder="RPE 1–10"></div>
-    <div class="btns"><button data-act="addExtra">+ Dodaj aktywność</button></div></div>`;
   return `${hdr(longDate(date), ui.tab !== 'today')}${w ? `<p class="muted" style="margin:0 0 10px">${esc(w.name)}${done ? ' · ✅ zrobiony' : ''}</p>` : ''}
-  <div class="card" style="padding:10px"><small class="muted">Zmiana w pracy</small>${shiftSel}</div>${bn}${body}
-  <div class="card"><div class="f" style="margin:0"><label>Trening na ten dzień</label><select data-act="override">${opts}</select></div></div>${ex}`;
+  <div class="card" style="padding:10px"><small class="muted">Zmiana w pracy</small>${shiftSel}</div>
+  <div class="card"><div class="f" style="margin:0"><label>Trening na ten dzień</label><select data-act="override">${opts}</select></div></div>${bn}${body}`;
 }
 
 function viewRun(l, w) {
   const runs = state.logs.filter(x => x.type === 'run' && logDone(x) && x.date < l.date).sort((a, b) => b.date.localeCompare(a.date));
   const prev = runs[0];
   const d = num(l.run.dist), t = l.run.time;
-  return `<section class="card">
+  const wu = warmup(l, w);
+  return `<section class="card"><h3>🔥 Rozgrzewka</h3>${wu.lines.map(t => `<p style="margin:6px 0">• ${esc(t)}</p>`).join('')}</section><section class="card">
     ${w?.note ? `<p class="muted" style="margin-top:0">${esc(w.note)}</p>` : ''}
     <div class="f"><label>Dystans (km)</label><input inputmode="decimal" data-f="dist" value="${d ? kg(d) : ''}" placeholder="np. 5,2"></div>
     <div class="f"><label>Czas (mm:ss lub g:mm:ss)</label><input inputmode="text" data-f="time" value="${t ? hms(t) : ''}" placeholder="np. 28:30"></div>
@@ -594,12 +652,11 @@ const A = {
     if (el.value) state.overrides[date] = el.value; else delete state.overrides[date];
     save(); render();
   },
-  addExtra: () => {
-    const name = $('#xname').value.trim() || 'Aktywność', min = Math.round(num($('#xmin').value)), rpe = Math.round(num($('#xrpe').value));
-    state.extras.push({ id: uid(), date: ui.date, name, min, rpe });
-    save(); render();
-  },
-  delExtra: el => { state.extras = state.extras.filter(x => x.id !== el.dataset.id); save(); render(); },
+  start: () => { const l = getLog(ui.date); l.status = 'live'; l.step = 0; commit(l); render(); window.scrollTo(0, 0); },
+  resume: () => { const l = getLog(ui.date); l.status = 'live'; l.step = 1; commit(l); render(); window.scrollTo(0, 0); },
+  step: el => { const l = getLog(ui.date); l.step = +el.dataset.i; commit(l); render(); window.scrollTo(0, 0); },
+  wuTog: el => { const l = getLog(ui.date); l.wu ||= {}; l.wu[el.dataset.k] = !l.wu[el.dataset.k]; commit(l); render(); },
+  finish: () => { const l = getLog(ui.date); l.status = 'done'; commit(l); tm.end = 0; tick(); render(); window.scrollTo(0, 0); },
   timerAdd: () => { tm.end += 15000; tick(); },
   timerStop: () => { tm.end = 0; tick(); },
   renameEx: () => {

@@ -16,7 +16,7 @@ Osobisty tracker treningów (siłownia + bieganie) jako PWA – bez backendu i b
 - Biegi: spokojny (tętno 130–145), interwały, test 3 km co 4–6 tyg.
 - **Grafik pracy**: D / N, dzień po nocce = bez siłowni, zielone okna na trening (≥48 h odstępu)
 - RIR przy seriach; progresja tylko gdy górny zakres przy RIR ≥2; wykrywanie stagnacji i podpowiedź deloadu
-- Bilans ciągnięcie:pchanie, BJJ/inne aktywności
+- Bilans ciągnięcie:pchanie, start treningu z rozgrzewką na dany dzień
 - **Ciało**: waga (średnia 7 dni), talia, tętno, test 3 km
 
 ## Uruchomienie na telefonie
