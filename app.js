@@ -287,27 +287,20 @@ const PLAN_WARM = {
 };
 const WARM_GEN = '5 min lekkiego ruchu (rower, wioślarz albo szybki marsz) – tętno lekko w górę, bez zadyszki';
 const r25 = x => Math.round(x / 2.5) * 2.5;
-function warmup(l, w) { // ogólne punkty + serie dochodzące do ciężaru roboczego dla 3 pierwszych ćwiczeń
-  const lines = w.type === 'run' ? (PLAN_WARM[w.name] || ['5 min szybkiego marszu', '5 min truchtu']) : [WARM_GEN, ...(PLAN_WARM[w.name] || [])];
-  const ramps = [];
-  if (l.type === 'strength') {
-    for (const e of l.entries.slice(0, 3)) {
-      const ex = exById(e.exId), top = e.sets[0]?.w || 0;
-      let txt;
-      if (ex?.bw && !top) txt = '2 serie po 3–4 powtórzenia, spokojnie, pełny zakres';
-      else if (!top) txt = 'Gdy wybierzesz ciężar roboczy: 50% × 5, 70% × 3, 85% × 1 (wpisz go poniżej w pierwszej serii)';
-      else {
-        const steps = [[.5, 5], [.7, 3], [.85, 1]].map(([f, n]) => [r25(top * f), n]).filter(([x], i, a) => x > 0 && x < top && a.findIndex(y => y[0] === x) === i);
-        txt = steps.map(([x, n]) => `${kg(x)} × ${n}`).join(' → ') + ` → robocze ${kg(top)}`;
-      }
-      ramps.push([ex?.name || '?', txt]);
-    }
-  }
-  return { lines, ramps };
+function warmup(w) { // ogólne punkty rozgrzewki dnia
+  return w.type === 'run' ? (PLAN_WARM[w.name] || ['5 min szybkiego marszu', '5 min truchtu']) : [WARM_GEN, ...(PLAN_WARM[w.name] || [])];
+}
+function rampFor(l, ei) { // serie wstępne dochodzące do ciężaru roboczego – tylko dla 3 pierwszych (głównych) ćwiczeń
+  if (l.type !== 'strength' || ei > 2) return null;
+  const e = l.entries[ei], ex = exById(e.exId), top = e.sets[0]?.w || 0;
+  if (ex?.bw && !top) return '2 serie po 3–4 powtórzenia, spokojnie, pełny zakres';
+  if (!top) return 'Po wybraniu ciężaru roboczego: 50% × 5, 70% × 3, 85% × 1';
+  const steps = [[.5, 5], [.7, 3], [.85, 1]].map(([f, n]) => [r25(top * f), n]).filter(([x], i, a) => x > 0 && x < top && a.findIndex(y => y[0] === x) === i);
+  return steps.map(([x, n]) => `${kg(x)} × ${n}`).join(' → ') + ` → robocze ${kg(top)}`;
 }
 
 /* ---------- widok dnia ---------- */
-function exCard(l, w, ei) {
+function exCard(l, w, ei, live) {
   const e = l.entries[ei], date = l.date, ex = exById(e.exId);
   const it = w?.items.find(i => i.exId === e.exId) || { exId: e.exId, sets: e.sets.length, repMin: 5, repMax: 10 };
   const last = lastSession(e.exId, date), pr = progression(it, last), u = unitOf(e.exId);
@@ -325,6 +318,7 @@ function exCard(l, w, ei) {
     <button data-act="tog" data-e="${ei}" data-s="${si}">✓</button></div>`).join('');
   return `<section class="card"><div class="row sp"><h3 data-act="openEx" data-id="${e.exId}">${esc(ex?.name || '?')}</h3><small>${it.sets}×${it.repMin}${it.repMax !== it.repMin ? '–' + it.repMax : ''}${it.rir ? ` · RIR ${it.rir}` : ''}</small></div>
     <div class="hint ${hc}">${hint}</div><div class="hint">${prev}</div>
+    ${live && rampFor(l, ei) ? `<div class="wu ${l.wu?.['r' + ei] ? 'on' : ''}" data-act="wuTog" data-k="r${ei}"><i></i><span><b>Serie wstępne</b><br><small>${esc(rampFor(l, ei))}</small></span></div>` : ''}
     <div class="sets"><div class="set hd"><span>#</span><span>${ex?.bw ? 'kg (0 = masa ciała)' : 'kg'}</span><span>${u}</span><span>RIR</span><span></span></div>${rows}</div>
     <div class="btns"><button data-act="addSet" data-e="${ei}">+ seria</button><button data-act="delSet" data-e="${ei}">− seria</button></div></section>`;
 }
@@ -355,12 +349,10 @@ function viewStrength(l, w) {
   const chips = `<div class="steps">${['🔥', ...l.entries.map((_, i) => i + 1)].map((t, i) => `<button class="${i === step ? 'on' : ''} ${i > 0 && l.entries[i - 1].sets.every(s => s.d) ? 'ok' : ''}" data-act="step" data-i="${i}">${t}</button>`).join('')}</div>`;
   let main;
   if (step === 0) {
-    const wu = warmup(l, w);
     main = `<section class="card"><h3>🔥 Rozgrzewka – ${esc(w.name)}</h3>
-      ${wu.lines.map((t, i) => `<div class="wu ${l.wu?.['g' + i] ? 'on' : ''}" data-act="wuTog" data-k="g${i}"><i></i><span>${esc(t)}</span></div>`).join('')}
-      ${wu.ramps.length ? `<h3 style="margin-top:14px">Serie dochodzące do ciężaru roboczego</h3><p class="muted" style="margin:2px 0 8px">Spokojnie, 1–2 min przerwy, bez zmęczenia przed seriami roboczymi.</p>
-      ${wu.ramps.map(([nm, t], i) => `<div class="wu ${l.wu?.['r' + i] ? 'on' : ''}" data-act="wuTog" data-k="r${i}"><i></i><span><b>${esc(nm)}</b><br><small>${esc(t)}</small></span></div>`).join('')}` : ''}</section>`;
-  } else if (step <= n) main = exCard(l, w, step - 1) + (step === n ? addExSel(l) : '');
+      ${warmup(w).map((t, i) => `<div class="wu ${l.wu?.['g' + i] ? 'on' : ''}" data-act="wuTog" data-k="g${i}"><i></i><span>${esc(t)}</span></div>`).join('')}
+      <p class="muted" style="margin:10px 0 0">Serie wstępne do ciężaru roboczego zobaczysz przy każdym z pierwszych ćwiczeń.</p></section>`;
+  } else if (step <= n) main = exCard(l, w, step - 1, true) + (step === n ? addExSel(l) : '');
   else main = `<section class="card"><h3>Koniec treningu 💪</h3><p class="muted">Objętość: <b>${Math.round(vol)}</b> kg</p></section>`;
   const nxt = step < n ? `Dalej: ${esc(exById(l.entries[step].exId)?.name || '')} →` : step === n ? 'Zakończ trening ✓' : 'Zapisz i zamknij ✓';
   return `${chips}${main}<div class="btns">${step > 0 ? `<button data-act="step" data-i="${step - 1}">← Wstecz</button>` : ''}<button class="pri" data-act="${step < n ? 'step' : 'finish'}" data-i="${step + 1}">${nxt}</button></div>`;
@@ -396,7 +388,8 @@ function viewDay() {
       <div class="chips">${others.map(x => btn(x, false)).join('')}<button data-act="plan" data-wid="rest">Odpoczynek</button></div></div>`;
   } else if (l.type === 'run') body = viewRun(l, w);
   else body = viewStrength(l, w);
-  const done = logDone(l);
+  const done = logDone(l), live = l?.status === 'live';
+  if (live) return `${hdr(longDate(date), ui.tab !== 'today')}${w ? `<p class="muted" style="margin:0 0 10px">${esc(w.name)}</p>` : ''}${body}`;
   return `${hdr(longDate(date), ui.tab !== 'today')}${w ? `<p class="muted" style="margin:0 0 10px">${esc(w.name)}${done ? ' · ✅ zrobiony' : ''}</p>` : ''}
   <div class="card" style="padding:10px"><small class="muted">Zmiana w pracy</small>${shiftSel}</div>
   <div class="card"><div class="f" style="margin:0"><label>Trening na ten dzień</label><select data-act="override">${opts}</select></div></div>${bn}${body}`;
@@ -406,8 +399,7 @@ function viewRun(l, w) {
   const runs = state.logs.filter(x => x.type === 'run' && logDone(x) && x.date < l.date).sort((a, b) => b.date.localeCompare(a.date));
   const prev = runs[0];
   const d = num(l.run.dist), t = l.run.time;
-  const wu = warmup(l, w);
-  return `<section class="card"><h3>🔥 Rozgrzewka</h3>${wu.lines.map(t => `<p style="margin:6px 0">• ${esc(t)}</p>`).join('')}</section><section class="card">
+  return `<section class="card"><h3>🔥 Rozgrzewka</h3>${warmup(w).map(t => `<p style="margin:6px 0">• ${esc(t)}</p>`).join('')}</section><section class="card">
     ${w?.note ? `<p class="muted" style="margin-top:0">${esc(w.note)}</p>` : ''}
     <div class="f"><label>Dystans (km)</label><input inputmode="decimal" data-f="dist" value="${d ? kg(d) : ''}" placeholder="np. 5,2"></div>
     <div class="f"><label>Czas (mm:ss lub g:mm:ss)</label><input inputmode="text" data-f="time" value="${t ? hms(t) : ''}" placeholder="np. 28:30"></div>
