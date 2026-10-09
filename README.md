@@ -15,10 +15,9 @@ Osobisty tracker treningów (siłownia + bieganie) jako PWA – bez backendu i b
 - Trening A/B w **kolejce** A→B→A→B (nie po dniach tygodnia), warianty: łączony (1 okno) i minimum 30–40 min
 - Biegi: spokojny (tętno 130–145), interwały, test 3 km co 4–6 tyg.
 - **Grafik pracy**: D / N, dzień po nocce = bez siłowni, zielone okna na trening (≥48 h odstępu)
-- **Sen**: 7 h+ bez zmian, 5–7 h = −20–30% serii i RIR ≥3, <5 h = spacer
 - RIR przy seriach; progresja tylko gdy górny zakres przy RIR ≥2; wykrywanie stagnacji i podpowiedź deloadu
-- Ból barku 0–10, bilans ciągnięcie:pchanie, BJJ/inne aktywności, licznik porcji białka, kalkulator kofeiny
-- **Ciało**: waga (średnia 7 dni), talia, tętno, rekomendacja jedzenia bez liczenia kalorii
+- Bilans ciągnięcie:pchanie, BJJ/inne aktywności
+- **Ciało**: waga (średnia 7 dni), talia, tętno, test 3 km
 
 ## Uruchomienie na telefonie
 1. Włącz GitHub Pages: *Settings → Pages → Source: GitHub Actions* (workflow wdraża gałąź `main`).

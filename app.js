@@ -64,8 +64,8 @@ const PLAN_W = [
   { name: 'Minimum (30–40 min)', note: 'Tydzień kryzysowy: 2 serie robocze każdego boju głównego + noszenie. Nie przesuwa kolejki A/B.',
     items: [['zer', 2, 5, 8, '1–2', 120], ['bench', 2, 5, 8, '1–2', 120], ['pu', 2, 5, 8, '1–2', 120], ['carry', 2, 30, 40, '', 60]] },
   { name: 'Bieg spokojny', type: 'run', note: '30 min, w 6–8 tyg. dojdź do 40. Tętno ok. 130–145, tempo rozmowne (pełne zdania). Liczy się tętno, nie tempo.' },
-  { name: 'Interwały', type: 'run', note: '4 × 3 min w tempie ok. 4:05–4:15/km, przerwy 2–3 min truchtu. Po 3–4 tyg. 4 × 4 min.', warn: 'Interwały tylko po śnie ≥7 h i nie w dzień przed treningiem A.', needSleep: 7 },
-  { name: 'Test 3 km', type: 'run', test: true, note: 'Co 4–6 tyg., po dobrej nocy. Cel: ≤3:54/km (≈11:42).' },
+  { name: 'Interwały', type: 'run', note: '4 × 3 min w tempie ok. 4:05–4:15/km, przerwy 2–3 min truchtu. Po 3–4 tyg. 4 × 4 min.', warn: 'Interwały nie w dzień przed treningiem A.' },
+  { name: 'Test 3 km', type: 'run', test: true, note: 'Co 4–6 tyg., w dobrej formie. Cel: ≤3:54/km (≈11:42).' },
 ];
 function applyPlan(s) {
   const ids = {};
@@ -78,7 +78,7 @@ function applyPlan(s) {
   for (const p of PLAN_W) {
     if (s.workouts.some(w => w.name === p.name)) continue;
     s.workouts.push({
-      id: uid(), name: p.name, type: p.type || 'strength', rot: p.rot, note: p.note, warn: p.warn, needSleep: p.needSleep, test: p.test,
+      id: uid(), name: p.name, type: p.type || 'strength', rot: p.rot, note: p.note, warn: p.warn, test: p.test,
       items: (p.items || []).map(([k, sets, repMin, repMax, rir, rest]) => ({ exId: ids[k], sets, repMin, repMax, rir, rest })),
     });
   }
@@ -87,15 +87,17 @@ function applyPlan(s) {
 function seed() {
   return applyPlan({
     v: 2, exercises: [], workouts: [], schedule: [null, null, null, null, null, null, null], overrides: {}, logs: [],
-    extras: [], shifts: {}, body: {}, protein: {}, deloadDate: null,
-    settings: { inc: 2.5, rest: 120, height: 187, sleepAt: '' },
+    extras: [], shifts: {}, body: {}, deloadDate: null,
+    settings: { inc: 2.5, rest: 120, height: 187 },
   });
 }
 function fill(s) {
   s.v = 2;
-  s.extras ||= []; s.shifts ||= {}; s.body ||= {}; s.protein ||= {}; s.overrides ||= {};
+  s.extras ||= []; s.shifts ||= {}; s.body ||= {}; s.overrides ||= {};
   s.schedule ||= [null, null, null, null, null, null, null];
-  s.settings = { inc: 2.5, rest: 120, height: 187, sleepAt: '', ...s.settings };
+  s.settings = { inc: 2.5, rest: 120, height: 187, ...s.settings };
+  delete s.settings.sleepAt; delete s.protein;
+  for (const w of s.workouts) { delete w.needSleep; if (w.warn && /śnie/.test(w.warn)) w.warn = 'Interwały nie w dzień przed treningiem A.'; if (w.note) w.note = w.note.replace('po dobrej nocy', 'w dobrej formie'); }
   return s;
 }
 let state = (() => {
@@ -282,7 +284,7 @@ function viewDay() {
     state.workouts.map(x => `<option value="${x.id}" ${state.overrides[date] === x.id ? 'selected' : ''}>${esc(x.name)}</option>`).join('');
   const strength = w && w.type === 'strength';
   let bn = '';
-  if (afterNight(date)) bn += banner('bad', strength ? '⚠️ Dzień po nocce – wg raportu bez siłowni (niższa synteza białek, gorsza technika, większe ryzyko kontuzji). Spacer 20–40 min i drzemka.' : '😴 Dzień po nocce – siłownia odpada. Spacer 20–40 min, najlepiej bez energetyków do 13–14.');
+  if (afterNight(date)) bn += banner('bad', strength ? '⚠️ Dzień po nocce – wg raportu bez siłowni (niższa synteza białek, gorsza technika, większe ryzyko kontuzji). Spacer 20–40 min i drzemka.' : '😴 Dzień po nocce – siłownia odpada. Spacer 20–40 min i odpoczynek.');
   if (sh === 'N') bn += banner('', '🌙 Nocka od wieczora: trening tylko rano, potem drzemka 60–90 min (np. 15:30–17:00).');
   if (sh === 'D') bn += banner('', '🕖 Służba dzienna – ten dzień raczej bez treningu.');
   if (strength) {
@@ -292,17 +294,6 @@ function viewDay() {
     if (y) bn += banner('warn', `Wczoraj: ${esc(y.name)}. Przy tym treningu obniż objętość nóg o ok. 30% albo przesuń trening.`);
   }
   if (w?.warn) bn += banner('warn', esc(w.warn));
-  if (l && w && (strength || w.needSleep)) {
-    const s = l.sleep;
-    if (s != null && s !== '') {
-      if (w.needSleep && s < w.needSleep) bn += banner('bad', `Sen ${kg(s)} h – interwały tylko po ≥7 h. Zrób bieg spokojny albo odpocznij.`);
-      else if (strength && s < 5) bn += banner('bad', `Sen ${kg(s)} h (<5 h): zamiast siłowni spacer albo lekki bieg 20–30 min. Bez ciężkich bojów.`);
-      else if (strength && s < 7) bn += banner('warn', `Sen ${kg(s)} h (5–7 h): bez prób rekordowych, RIR ≥3, objętość −20–30%. ${l.cut ? '(objętość już zmniejszona)' : '<button class="inl" data-act="cutVol">Zmniejsz objętość</button>'}`);
-      else if (strength) bn += banner('ok', `Sen ${kg(s)} h – plan bez zmian.`);
-    }
-    const pain = num(l.pain), recent = state.logs.find(x => x.type === 'strength' && x.date < date && dayDiff(date, x.date) <= 3 && num(x.pain) > 3);
-    if (pain > 3) bn += banner(recent ? 'bad' : 'warn', recent ? `Ból barku ${pain}/10, a był >3 też ${shortDate(recent.date)} – utrzymuje się >48 h: zmodyfikuj trening i skonsultuj fizjoterapeutę.` : `Ból barku ${pain}/10 (>3): węższy chwyt / hantle neutralne, krótszy zakres. Narastający, nocny lub >48 h → fizjoterapeuta.`);
-  }
 
   let body = '';
   if (!l) {
@@ -325,7 +316,7 @@ function viewDay() {
       else if (pr.up) { hint = `↑ Wszystkie serie na górze zakresu przy RIR ≥2 – dziś +${kg(exInc(e.exId))} kg`; hc = 'up'; }
       else if (pr.blocked) hint = 'Górny zakres był, ale RIR <2 – zostań przy tym ciężarze, wróć do RIR 2–3.';
       else hint = `Cel: ${it.repMax} ${u} we wszystkich seriach przy RIR ≥2, potem podnieś ciężar`;
-      if (stagnant(e.exId, date)) hint += ' · ⚠️ 3 sesje bez progresu: zmień zakres/wariant albo zrób deload (jeśli sen był dobry).';
+      if (stagnant(e.exId, date)) hint += ' · ⚠️ 3 sesje bez progresu: zmień zakres/wariant albo zrób deload.';
       const prev = last ? `Ostatnio (${shortDate(last.date)}): ${last.sets.map(s => `${kg(s.w)}×${s.r}${s.x != null ? ` @${s.x}` : ''}`).join(', ')}` : '';
       const rows = e.sets.map((s, si) => `<div class="set ${s.d ? 'done' : ''}"><span>${si + 1}</span>
         <input inputmode="decimal" data-f="w" data-e="${ei}" data-s="${si}" value="${s.w ? kg(s.w) : ''}" placeholder="${ex?.bw ? 'MC' : 'kg'}">
@@ -344,30 +335,14 @@ function viewDay() {
       <select data-act="addEx"><option value="">wybierz…</option>${extra.map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></div></div>
       <p class="muted" style="text-align:center">Objętość: <b>${Math.round(vol)}</b> kg</p>`;
   }
-  const top = l && w ? `<div class="card"><div class="row"><div class="grow"><label class="muted">Sen przed treningiem (h)</label><input inputmode="decimal" data-f="sleep" value="${l.sleep ?? ''}" placeholder="np. 7,5"></div>
-    ${strength ? `<div class="grow"><label class="muted">Ból barku (0–10)</label><select data-act="pain">${Array.from({ length: 11 }, (_, i) => `<option value="${i}" ${num(l.pain) === i ? 'selected' : ''}>${i}</option>`).join('')}</select></div>` : ''}</div></div>` : '';
   const done = logDone(l);
-  const prot = state.protein[date] || 0;
   const extras = state.extras.filter(x => x.date === date);
-  const ex = `<h2>Białko</h2><div class="card row sp"><div><b>${prot} / 4 porcji</b><br><small>1 porcja = 35–45 g białka</small></div><div class="btns" style="margin:0"><button data-act="prot" data-d="-1">−</button><button class="pri" data-act="prot" data-d="1">+</button></div></div>
-    <h2>Dodatkowa aktywność</h2><div class="card">${extras.map(x => `<div class="li"><div class="grow"><b>${esc(x.name)}</b><small>${x.min} min · RPE ${x.rpe}</small></div><button class="ghost dng" data-act="delExtra" data-id="${x.id}">✕</button></div>`).join('')}
+  const ex = `<h2>Dodatkowa aktywność</h2><div class="card">${extras.map(x => `<div class="li"><div class="grow"><b>${esc(x.name)}</b><small>${x.min} min · RPE ${x.rpe}</small></div><button class="ghost dng" data-act="delExtra" data-id="${x.id}">✕</button></div>`).join('')}
     <div class="ed3"><input id="xname" value="BJJ" aria-label="nazwa"><input id="xmin" inputmode="numeric" placeholder="min"><input id="xrpe" inputmode="numeric" placeholder="RPE 1–10"></div>
     <div class="btns"><button data-act="addExtra">+ Dodaj aktywność</button></div></div>`;
-  const cafe = date === today() ? viewCaf() : '';
   return `${hdr(longDate(date), ui.tab !== 'today')}${w ? `<p class="muted" style="margin:0 0 10px">${esc(w.name)}${done ? ' · ✅ zrobiony' : ''}</p>` : ''}
-  <div class="card" style="padding:10px"><small class="muted">Zmiana w pracy</small>${shiftSel}</div>${bn}${top}${body}
-  <div class="card"><div class="f" style="margin:0"><label>Trening na ten dzień</label><select data-act="override">${opts}</select></div></div>${ex}${cafe}`;
-}
-
-function viewCaf() {
-  const t = state.settings.sleepAt;
-  let out = '';
-  if (t) {
-    const [h, m] = t.split(':').map(Number);
-    const f = min => { let x = h * 60 + m - min; const prev = x < 0; x = ((x % 1440) + 1440) % 1440; return `<b>${pad(Math.floor(x / 60))}:${pad(x % 60)}</b>${prev ? ' (dzień wcześniej)' : ''}`; };
-    out = `<p style="margin:8px 0 0">☕ Ostatnia kawa (~100 mg): ${f(528)}<br>⚡ Ostatnia przedtreningówka / energetyk (~200 mg): ${f(792)}</p><p class="muted" style="margin:6px 0 0">Wg raportu: kawa ≥8,8 h, dawka ~200 mg ≥13 h przed snem. Na nocce małe dawki (~100 mg) na początku i w środku zmiany.</p>`;
-  }
-  return `<h2>Kofeina i sen</h2><div class="card"><div class="f" style="margin:0"><label>O której planujesz zasnąć?</label><input type="time" data-f="sleepAt" value="${esc(t)}"></div>${out}</div>`;
+  <div class="card" style="padding:10px"><small class="muted">Zmiana w pracy</small>${shiftSel}</div>${bn}${body}
+  <div class="card"><div class="f" style="margin:0"><label>Trening na ten dzień</label><select data-act="override">${opts}</select></div></div>${ex}`;
 }
 
 function viewRun(l, w) {
@@ -434,7 +409,7 @@ function viewEx() {
   }).join('');
   return `${hdr(ex.name, true)}
   <div class="stats"><div><b>${prSet ? kg(prSet.w) : '–'}</b><small>rekord kg${prSet ? ` ×${prSet.r}` : ''}</small></div><div><b>${s.length ? kg(Math.round(Math.max(...s.map(x => e1rm(x.sets))) * 10) / 10) : '–'}</b><small>szac. 1RM</small></div><div><b>${s.length}</b><small>treningi</small></div></div>
-  ${stagnant(ex.id, '9999') ? banner('warn', '3 ostatnie sesje bez progresu. Zmień zakres powtórzeń lub wariant, a jeśli śpisz dobrze – zrób deload.') : ''}
+  ${stagnant(ex.id, '9999') ? banner('warn', '3 ostatnie sesje bez progresu. Zmień zakres powtórzeń lub wariant, albo zrób deload.') : ''}
   <div class="card">${seg([['top', 'Ciężar'], ['e1rm', '1RM'], ['vol', 'Objętość'], ['reps', 'Powt.']], metric)}${chart(pts, v => kg(Math.round(v)))}</div>
   <div class="card"><div class="f"><label>Krok progresji (kg)</label><input inputmode="decimal" data-f="exinc" value="${kg(exInc(ex.id))}"></div>
   <div class="f" style="margin:0"><label>Ciężar startowy przy pierwszym razie (kg)</label><input inputmode="decimal" data-f="exstart" value="${ex.start ? kg(ex.start) : ''}"></div></div>
@@ -463,20 +438,6 @@ function viewRunStats() {
 const bodyPts = k => Object.entries(state.body).filter(([, v]) => num(v[k]) > 0).map(([d, v]) => ({ d, y: num(v[k]) })).sort((a, b) => a.d.localeCompare(b.d));
 const avgIn = (pts, from, to) => { const a = pts.filter(p => p.d >= from && p.d <= to); return a.length ? a.reduce((s, p) => s + p.y, 0) / a.length : null; };
 
-function recommend() { // reguła praktyczna z raportu (nie wynik RCT)
-  const t = today(), wp = bodyPts('w'), cp = bodyPts('waist');
-  const w1 = avgIn(wp, addDays(t, -6), t), w0 = avgIn(wp, addDays(t, -20), addDays(t, -14));
-  const cNow = cp.length ? cp[cp.length - 1] : null, cOld = [...cp].reverse().find(p => p.d <= addDays(t, -14));
-  if (w1 == null || w0 == null || !cNow || !cOld) return { cls: '', txt: 'Za mało danych. Potrzebuję min. 2–3 tygodni pomiarów wagi (rano) i talii (raz w tygodniu).' };
-  const rate = ((w1 - w0) / w0 * 100) / 2, dW = cNow.y - cOld.y;
-  const base = `Waga: ${rate >= 0 ? '+' : ''}${kg(Math.round(rate * 100) / 100)}%/tydz., talia: ${dW >= 0 ? '+' : ''}${kg(Math.round(dW * 10) / 10)} cm w ~2 tyg. `;
-  if (rate < -0.7) return { cls: 'warn', txt: base + 'Masa spada za szybko (>0,7%/tydz.). Dodaj ~1 porcję węglowodanów, sprawdź sen – a jeśli spada też siła, nie tnij dalej.' };
-  if (dW <= -0.5 && rate >= -0.5 && rate <= 0.3) return { cls: 'ok', txt: base + 'Talia w dół przy stabilnej masie – idealna rekompozycja. Bez zmian.' };
-  if (rate > 0.2 && dW >= 0.5) return { cls: 'warn', txt: base + 'Masa i talia rosną. Zabierz przekąski i kalorie płynne.' };
-  if (Math.abs(dW) < 0.5 && Math.abs(rate) < 0.3) return { cls: 'warn', txt: base + 'Talia i masa stoją. Zabierz ~1 porcję węglowodanów/tłuszczu dziennie (np. pieczywo, przekąska).' };
-  return { cls: '', txt: base + 'Obraz mieszany – obserwuj jeszcze tydzień, nie zmieniaj jedzenia po jednym pomiarze.' };
-}
-
 function viewBody() {
   const d = ui.bdate, b = state.body[d] || {};
   const wp = bodyPts('w'), cp = bodyPts('waist'), hp = bodyPts('hr');
@@ -485,10 +446,8 @@ function viewBody() {
   const pts = src.map(p => ({ l: p.d, y: m === 'waist' ? p.y : avgIn(src, addDays(p.d, -6), p.d) }));
   const t = today(), wNow = avgIn(wp, addDays(t, -6), t), cNow = cp.length ? cp[cp.length - 1].y : 0;
   const whtr = cNow ? cNow / state.settings.height : 0;
-  const rec = recommend();
   const tests = state.logs.filter(l => l.type === 'run' && logDone(l) && wById(l.wid)?.test).sort((a, b) => b.date.localeCompare(a.date));
   const tl = tests[0];
-  const pr7 = Array.from({ length: 7 }, (_, i) => state.protein[addDays(t, -i)] || 0), pAvg = pr7.reduce((a, b) => a + b, 0) / 7;
   return `${hdr('Ciało')}
   <div class="card"><div class="f"><label>Data pomiaru</label><input type="date" data-f="bdate" value="${d}"></div>
     <div class="row"><div class="grow"><label class="muted">Waga rano (kg)</label><input inputmode="decimal" data-f="bw" value="${b.w ? kg(b.w) : ''}"></div>
@@ -496,13 +455,9 @@ function viewBody() {
     <div class="grow"><label class="muted">Tętno spocz.</label><input inputmode="numeric" data-f="bhr" value="${b.hr || ''}"></div></div>
     <p class="muted" style="margin:8px 0 0">Waga: rano po toalecie, 3–7× w tygodniu (liczy się średnia). Talia: 1× w tygodniu, na wysokości pępka, rano, na wydechu.</p></div>
   <div class="stats"><div><b>${wNow ? kg(Math.round(wNow * 10) / 10) : '–'}</b><small>waga, śr. 7 dni</small></div><div><b>${cNow ? kg(cNow) : '–'}</b><small>talia cm (cel 80–83)</small></div><div><b>${whtr ? whtr.toFixed(2).replace('.', ',') : '–'}</b><small>talia/wzrost</small></div></div>
-  ${banner(rec.cls, `<b>Jedzenie bez liczenia kalorii:</b> ${rec.txt}<br><small>Reguła praktyczna z raportu – nie wynik badań. Ocena co 2–3 tygodnie, nie po jednym pomiarze.</small>`)}
   <div class="card">${seg([['weight', 'Waga'], ['waist', 'Talia'], ['hr', 'Tętno']], m, 'bm')}${chart(pts, v => kg(Math.round(v * 10) / 10))}${m !== 'waist' ? '<small class="muted">Wykres pokazuje średnią kroczącą z 7 dni.</small>' : ''}</div>
-  <div class="card"><b>Białko:</b> średnio ${kg(Math.round(pAvg * 10) / 10)} / 4 porcje w ostatnich 7 dniach
-    <p class="muted" style="margin:6px 0 0">Cel: 4 porcje po 35–45 g (140–180 g dziennie). Licznik porcji jest na ekranie dnia.</p></div>
-  <div class="card"><b>Test 3 km</b> ${tl ? `<p style="margin:6px 0 0">Ostatni: ${longDate(tl.date)} – ${hms(tl.run.time)} (${mmss(tl.run.time / num(tl.run.dist))}/km). Następny: ok. ${shortDate(addDays(tl.date, 28))} – ${shortDate(addDays(tl.date, 42))}.</p>` : '<p class="muted" style="margin:6px 0 0">Brak. Zrób test po dobrej nocy (wybierz „Test 3 km” w planie dnia) i powtarzaj co 4–6 tyg.</p>'}
-    <p class="muted" style="margin:6px 0 0">Gorszy wynik przy dobrym śnie → dodaj 1 bieg tygodniowo. Lepszy → bez zmian.</p></div>
-  ${viewCaf()}`;
+  <div class="card"><b>Test 3 km</b> ${tl ? `<p style="margin:6px 0 0">Ostatni: ${longDate(tl.date)} – ${hms(tl.run.time)} (${mmss(tl.run.time / num(tl.run.dist))}/km). Następny: ok. ${shortDate(addDays(tl.date, 28))} – ${shortDate(addDays(tl.date, 42))}.</p>` : '<p class="muted" style="margin:6px 0 0">Brak. Zrób test (wybierz „Test 3 km” w planie dnia) i powtarzaj co 4–6 tyg.</p>'}
+    <p class="muted" style="margin:6px 0 0">Gorszy wynik → dodaj 1 bieg tygodniowo. Lepszy → bez zmian.</p></div>`;
 }
 
 /* ---------- plan ---------- */
@@ -579,7 +534,8 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 
 /* ---------- akcje ---------- */
 const A = {
-  tab: t => {
+  tab: el => {
+    const t = el.dataset.tab;
     if (t === 'today') go({ tab: 'today', date: today() });
     else go({ tab: t, exId: null, wid: null });
   },
@@ -616,17 +572,6 @@ const A = {
     const l = getLog(ui.date), e = l.entries[+el.dataset.e];
     if (e.sets.length > 1) { e.sets.pop(); commit(l); render(); }
   },
-  cutVol: () => { // sen 5–7 h: usuń ostatnią niezrobioną serię z ćwiczeń mających ≥3 serie (~−25%)
-    const l = getLog(ui.date);
-    if (l.cut) return;
-    for (const e of l.entries) {
-      if (e.sets.length < 3) continue;
-      const i = e.sets.map(s => s.d).lastIndexOf(false);
-      if (i >= 0) e.sets.splice(i, 1);
-    }
-    l.cut = true; commit(l); render();
-  },
-  pain: el => { const l = getLog(ui.date); l.pain = +el.value; commit(l); render(); },
   addEx: el => {
     if (!el.value) return;
     const l = getLog(ui.date), it = { exId: el.value, sets: 3, repMin: 8, repMax: 12 };
@@ -649,7 +594,6 @@ const A = {
     if (el.value) state.overrides[date] = el.value; else delete state.overrides[date];
     save(); render();
   },
-  prot: el => { const d = ui.date; state.protein[d] = Math.max(0, Math.min(8, (state.protein[d] || 0) + +el.dataset.d)); save(); render(); },
   addExtra: () => {
     const name = $('#xname').value.trim() || 'Aktywność', min = Math.round(num($('#xmin').value)), rpe = Math.round(num($('#xrpe').value));
     state.extras.push({ id: uid(), date: ui.date, name, min, rpe });
@@ -746,8 +690,6 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const el = e.target;
   if (el.tagName === 'SELECT' && el.dataset.act) A[el.dataset.act](el);
-  else if (el.dataset.f === 'sleep') { const l = getLog(ui.date); l.sleep = el.value.trim() === '' ? null : num(el.value); commit(l); render(); }
-  else if (el.dataset.f === 'sleepAt') { state.settings.sleepAt = el.value; save(); render(); }
   else if (el.dataset.f === 'bdate') { ui.bdate = el.value || today(); render(); }
   else if (['bw', 'bwaist', 'bhr'].includes(el.dataset.f)) render();
   if (el.id === 'file' && el.files[0]) {
