@@ -421,7 +421,7 @@ function viewExList() {
   const q = (ui.q || '').toLowerCase();
   const list = state.exercises.filter(e => e.name.toLowerCase().includes(q)).map(e => {
     const s = sessionsFor(e.id), last = s[s.length - 1];
-    return `<div class="li" data-act="openEx" data-id="${e.id}"><div class="grow"><b>${esc(e.name)}</b><small>${last ? `ostatnio ${shortDate(last.date)}: ${last.sets.map(x => `${kg(x.w)}×${x.r}`).join(' ')}` : 'brak wpisów'}</small></div><span class="chip">${s.length}×</span></div>`;
+    return `<div class="li" data-act="openEx" data-id="${e.id}"><div class="grow"><b>${esc(e.name)}</b><small>${last ? `ostatnio ${shortDate(last.date)}: ${last.sets.map(x => `${kg(x.w)}×${x.r}`).join(' ')}` : 'brak wpisów'}</small></div><span>${state.workouts.filter(w => w.rot && w.items.some(i => i.exId === e.id)).map(w => `<span class="chip up">${w.rot}</span>`).join(' ')} <span class="chip">${s.length}×</span></span></div>`;
   }).join('');
   return `${hdr('Ćwiczenia')}
   <div class="btns" style="margin:0 0 12px"><button class="pri" data-act="exNew">+ Dodaj ćwiczenie</button></div>
@@ -467,6 +467,7 @@ function viewEx() {
   <div class="stats"><div><b>${prSet ? kg(prSet.w) : '–'}</b><small>rekord kg${prSet ? ` ×${prSet.r}` : ''}</small></div><div><b>${s.length ? kg(Math.round(Math.max(...s.map(x => e1rm(x.sets))) * 10) / 10) : '–'}</b><small>szac. 1RM</small></div><div><b>${s.length}</b><small>treningi</small></div></div>
   ${stagnant(ex.id, '9999') ? banner('warn', '3 ostatnie sesje bez progresu. Zmień zakres powtórzeń lub wariant, albo zrób deload.') : ''}
   <div class="card">${seg([['top', 'Ciężar'], ['e1rm', '1RM'], ['vol', 'Objętość'], ['reps', 'Powt.']], metric)}${chart(pts, v => kg(Math.round(v)))}</div>
+  <div class="card"><small class="muted">W treningach</small><br>${state.workouts.filter(w => w.items.some(i => i.exId === ex.id)).map(w => { const i = w.items.find(x => x.exId === ex.id); return `<b>${esc(w.name)}</b> ${i.sets}×${i.repMin}${i.repMax !== i.repMin ? '–' + i.repMax : ''}${i.rir ? ` · RIR ${i.rir}` : ''}`; }).join('<br>') || '<span class="muted">Nie ma w żadnym treningu – dodaj przez Edytuj.</span>'}</div>
   <h2>Historia</h2><div class="card" style="padding:4px 14px">${hist || '<p class="muted">Brak wpisów – zrób pierwszy trening.</p>'}</div>
   <div class="btns"><button data-act="exEdit">✏️ Edytuj</button><button class="dng" data-act="exDel">🗑 Usuń</button></div>`;
 }
@@ -485,6 +486,13 @@ function viewExForm() {
     <div class="f"><label>Krok progresji (kg) – puste = domyślny ${kg(state.settings.inc)}</label><input id="finc" inputmode="decimal" value="${ex.inc ? kg(ex.inc) : ''}"></div>
     <div class="f" style="margin:0"><label>Serie wstępne (opcjonalnie)</label><input id="framp" value="${esc(ex.ramp || '')}" placeholder="np. 20 kg × 8 → 40 kg × 5 → robocze 60 kg"></div>
   </div>
+  <h2>W jakich treningach</h2>
+  ${state.workouts.filter(w => w.type === 'strength').map(w => {
+    const it = w.items.find(i => i.exId === ex.id);
+    return `<div class="card"><label class="chk"><input type="checkbox" id="fw_${w.id}" ${it ? 'checked' : ''}> <b>${esc(w.name)}</b></label>
+      <div class="ed5 hd"><span>serie</span><span>od</span><span>do</span><span>RIR</span><span>przerwa s</span></div>
+      <div class="ed5"><input inputmode="numeric" id="fs_${w.id}" value="${it ? it.sets : 3}"><input inputmode="numeric" id="fmin_${w.id}" value="${it ? it.repMin : 8}"><input inputmode="numeric" id="fmax_${w.id}" value="${it ? it.repMax : 12}"><input id="frir_${w.id}" value="${esc(it?.rir || '')}" placeholder="1–2"><input inputmode="numeric" id="frest_${w.id}" value="${it?.rest || ''}" placeholder="90"></div></div>`;
+  }).join('')}
   <div class="btns"><button class="pri" data-act="exSave">Zapisz</button><button data-act="back">Anuluj</button></div>`;
 }
 
@@ -687,6 +695,16 @@ const A = {
     ex.inc = num($('#finc').value) || undefined;
     ex.ramp = $('#framp').value.trim() || undefined;
     if (isNew) state.exercises.push(ex);
+    for (const w of state.workouts) {
+      if (w.type !== 'strength') continue;
+      const cb = $('#fw_' + w.id), idx = w.items.findIndex(i => i.exId === ex.id);
+      if (!cb) continue;
+      if (!cb.checked) { if (idx >= 0) w.items.splice(idx, 1); continue; }
+      const sets = Math.max(1, Math.round(num($('#fs_' + w.id).value)) || 3), repMin = Math.max(1, Math.round(num($('#fmin_' + w.id).value)) || 8);
+      const it = { exId: ex.id, sets, repMin, repMax: Math.max(repMin, Math.round(num($('#fmax_' + w.id).value)) || repMin), rir: $('#frir_' + w.id).value.trim(), rest: Math.round(num($('#frest_' + w.id).value)) || undefined };
+      if (idx >= 0) w.items[idx] = it; else w.items.push(it);
+    }
+    for (const k in drafts) delete drafts[k];
     save(); history.back();
   },
   exDel: () => {

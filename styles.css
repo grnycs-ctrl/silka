@@ -123,3 +123,10 @@ button.big{width:100%;min-height:60px;font-size:20px;margin:6px 0 12px}
 .wu i{flex:0 0 24px;height:24px;border-radius:7px;border:2px solid var(--line);margin-top:1px}
 .wu.on i{background:var(--ok);border-color:var(--ok)}
 .wu.on span{opacity:.5;text-decoration:line-through}
+
+/* v4 */
+.chk{display:flex;align-items:center;gap:10px;font-size:16px;margin-bottom:8px}
+input[type=checkbox]{width:24px;min-height:24px;height:24px;padding:0;accent-color:var(--acc)}
+.ed5{display:grid;grid-template-columns:1fr 1fr 1fr 1.2fr 1.4fr;gap:6px;margin-bottom:4px}
+.ed5.hd{font-size:11px;color:var(--mut);text-align:center}
+.ed5 input{padding:10px 4px;text-align:center}
