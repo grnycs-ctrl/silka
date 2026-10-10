@@ -35,53 +35,58 @@ const parseTime = s => { // "25:30", "1:05:00" lub samo "25" (minuty) -> sekundy
 
 /* ---------- plan "operator build" (wg raportu badawczego) ---------- */
 // [klucz, nazwa, wzorzec, ciężar startowy, krok progresji, opcje]
+const PLAN_V = 2; // zmiana numeru nadpisuje ćwiczenia planu u użytkownika ze starszą wersją
+// [klucz, nazwa, wzorzec, ciężar startowy, krok progresji, opcje: bw, unit, ramp (serie wstępne), alias (stare nazwy)]
 const PLAN_EX = [
-  ['zer', 'Zercher squat', 'legs', 50, 2.5],
-  ['bench', 'Wyciskanie sztangi leżąc (chwyt ≤1,5× szer. barków)', 'push', 72.5, 2.5],
-  ['pu', 'Podciąganie nachwytem', 'pull', 0, 2.5, { bw: 1 }],
-  ['split', 'Split squat / wykroki chodzone (hantle, na nogę)', 'legs', 12, 2],
-  ['row', 'Wiosłowanie hantlem jednorącz', 'pull', 22.5, 2.5],
-  ['fp', 'Face pull + rotacja zewnętrzna na wyciągu', 'pull', 0, 2.5],
-  ['carry', 'Suitcase carry (metry)', 'carry', 24, 2, { unit: 'm' }],
-  ['trap', 'Martwy ciąg trap bar', 'legs', 0, 5],
-  ['rdl', 'RDL (gdy brak trap bara)', 'legs', 55, 2.5],
-  ['ohp', 'Wyciskanie hantli nad głowę siedząc (kg na hantlę)', 'push', 20, 2],
-  ['pun', 'Podciąganie chwytem neutralnym', 'pull', 0, 2.5, { bw: 1 }],
-  ['inc', 'Wyciskanie hantli na skosie dodatnim 30° (chwyt neutralny)', 'push', 16, 2],
+  ['squat', 'Przysiad ze sztangą na plecach', 'legs', 60, 2.5, { ramp: '20 kg × 8 → 30 kg × 5 → 40 kg × 3 → 50 kg × 2 → robocze 60 kg' }],
+  ['bench', 'Wyciskanie leżąc', 'push', 77.5, 2.5, { alias: ['Wyciskanie sztangi leżąc (chwyt ≤1,5× szer. barków)'], ramp: '20 kg × 10 → 40 kg × 6 → 55 kg × 4 → 65 kg × 2 → robocze 77,5 kg' }],
+  ['benchb', 'Wyciskanie leżąc – seria po ciężkich', 'push', 70, 2.5],
+  ['pu', 'Podciąganie nachwytem', 'pull', 0, 2.5, { bw: 1, ramp: 'Zwis 10 s + 3 powtórzenia → robocze: masa ciała' }],
+  ['rdl', 'RDL ze sztangą', 'legs', 60, 2.5, { alias: ['RDL (gdy brak trap bara)'], ramp: '40 kg × 5 → 50 kg × 3 → robocze 60 kg' }],
   ['curl', 'Uginanie nóg leżąc', 'legs', 50, 2.5],
-  ['abs', 'Allahy / wznosy nóg w zwisie', 'core', 0, 2.5],
-  ['tri', 'Triceps na wyciągu', 'arm', 40, 2.5],
-  ['bic', 'Uginanie hantli (biceps)', 'arm', 12.5, 2],
+  ['lr', 'Wznosy bokiem na wyciągu', 'arm', 5, 1],
+  ['tri', 'Wyprost tricepsa nad głową na wyciągu', 'arm', 20, 2.5, { alias: ['Triceps na wyciągu'] }],
+  ['bic', 'Uginanie hantli na ławce skośnej (kg na rękę)', 'arm', 10, 2, { alias: ['Uginanie hantli (biceps)'] }],
+  ['carry', 'Suitcase carry (metry)', 'carry', 24, 2, { unit: 'm' }],
+  ['trap', 'Martwy ciąg trap bar', 'legs', 90, 5, { ramp: 'Sam gryf × 8 → 50 kg × 5 → 70 kg × 3 → 80 kg × 1 → robocze 90 kg' }],
+  ['ohp', 'Wyciskanie hantli nad głowę siedząc (kg na hantlę)', 'push', 20, 2, { ramp: '10 kg × 8 → 14 kg × 4 → robocze 20 kg' }],
+  ['row', 'Wiosłowanie z podparciem klatki', 'pull', 0, 2.5, { ramp: 'Lekko × 8 → robocze' }],
+  ['bulg', 'Przysiad bułgarski z hantlami (kg na rękę, na nogę)', 'legs', 14, 2, { alias: ['Split squat / wykroki chodzone (hantle, na nogę)'], ramp: 'Masa ciała × 6 na nogę → robocze 14 kg' }],
+  ['inc', 'Wyciskanie hantli na skosie 30° (chwyt neutralny)', 'push', 20, 2, { alias: ['Wyciskanie hantli na skosie dodatnim 30° (chwyt neutralny)'] }],
+  ['lpd', 'Ściąganie drążka chwytem neutralnym', 'pull', 50, 2.5],
+  ['allah', 'Allahy', 'core', 30, 2.5],
+  ['legext', 'Wyprost nóg na maszynie (opcjonalnie)', 'legs', 0, 2.5],
 ];
 // pozycje: [klucz, serie, od, do, RIR, przerwa (s)]
 const PLAN_W = [
-  { name: 'Trening A', rot: 'A', note: 'Przysiad · wyciskanie · podciąganie. 5 min lekkiego ruchu + 2–3 serie dochodzące do ciężaru roboczego. Ok. 75–85 min.',
-    items: [['zer', 4, 5, 8, '2–3', 150], ['bench', 3, 5, 8, '2–3', 150], ['pu', 4, 5, 8, '2–3', 150], ['split', 3, 8, 10, '1–2', 90], ['row', 3, 8, 12, '1–2', 75], ['fp', 2, 15, 20, '0–1', 60], ['carry', 3, 30, 40, '', 60]] },
-  { name: 'Trening B', rot: 'B', note: 'Zawias · wyciskanie nad głowę · plecy. Triceps i biceps na koniec, jeśli starczy czasu. Bez trap bara zrób RDL 3×6–8.',
-    items: [['trap', 3, 5, 5, '2–3', 150], ['ohp', 3, 6, 10, '2–3', 120], ['pun', 3, 6, 10, '1–2', 90], ['inc', 3, 8, 12, '1–2', 90], ['curl', 3, 10, 15, '0–1', 60], ['abs', 2, 10, 15, '0–1', 60], ['tri', 2, 10, 15, '0–1', 60], ['bic', 2, 10, 15, '0–1', 60]] },
-  { name: 'Wersja łączona (tydzień z 1 oknem)', note: '1 bój nóg, 1 pchanie, 1 ciągnięcie, RIR 1–2, plus dodatki. Nie przesuwa kolejki A/B.',
-    items: [['zer', 3, 5, 8, '1–2', 150], ['bench', 3, 5, 8, '1–2', 150], ['pu', 3, 5, 8, '1–2', 150], ['carry', 2, 30, 40, '', 60], ['fp', 2, 15, 20, '0–1', 60]] },
+  { name: 'Trening A', rot: 'A', note: 'Przysiad · wyciskanie · podciąganie · RDL. Ok. 75–85 min. Opcjonalnie na końcu: wyprost nóg na maszynie 2×10–15, RIR 0–1.',
+    items: [['squat', 4, 4, 6, '2–3', 180], ['bench', 3, 4, 6, '2', 150], ['benchb', 1, 8, 10, '2', 120], ['pu', 3, 5, 8, '2', 120], ['rdl', 3, 6, 8, '2–3', 120], ['curl', 3, 8, 12, '1', 90], ['lr', 3, 10, 15, '0–1', 60], ['tri', 2, 10, 15, '0–1', 60], ['bic', 2, 10, 15, '0–1', 60], ['carry', 2, 30, 40, '', 60]] },
+  { name: 'Trening B', rot: 'B', note: 'Martwy ciąg · wyciskanie nad głowę · plecy · nogi. Ciężar „dobierz”: tak, by ostatnie powtórzenie zostawiało zapas zgodny z RIR; po pierwszej sesji popraw ciężar startowy przy ćwiczeniu.',
+    items: [['trap', 3, 3, 5, '2–3', 180], ['ohp', 3, 6, 10, '1–2', 120], ['row', 3, 8, 12, '1–2', 120], ['bulg', 3, 6, 10, '1–2', 90], ['inc', 3, 8, 12, '1', 120], ['lpd', 3, 8, 12, '1', 120], ['curl', 2, 10, 15, '0–1', 90], ['lr', 3, 12, 20, '0–1', 60], ['allah', 3, 10, 15, '0–1', 60]] },
+  { name: 'Wersja łączona (tydzień z 1 oknem)', note: '1 bój nóg, 1 pchanie, 1 ciągnięcie, RIR 1–2, plus noszenie. Nie przesuwa kolejki A/B.',
+    items: [['squat', 3, 4, 6, '1–2', 180], ['bench', 3, 4, 6, '1–2', 150], ['pu', 3, 5, 8, '1–2', 120], ['carry', 2, 30, 40, '', 60]] },
   { name: 'Minimum (30–40 min)', note: 'Tydzień kryzysowy: 2 serie robocze każdego boju głównego + noszenie. Nie przesuwa kolejki A/B.',
-    items: [['zer', 2, 5, 8, '1–2', 120], ['bench', 2, 5, 8, '1–2', 120], ['pu', 2, 5, 8, '1–2', 120], ['carry', 2, 30, 40, '', 60]] },
+    items: [['squat', 2, 4, 6, '1–2', 150], ['bench', 2, 4, 6, '1–2', 150], ['pu', 2, 5, 8, '1–2', 120], ['carry', 2, 30, 40, '', 60]] },
   { name: 'Bieg spokojny', type: 'run', note: '30 min, w 6–8 tyg. dojdź do 40. Tętno ok. 130–145, tempo rozmowne (pełne zdania). Liczy się tętno, nie tempo.' },
   { name: 'Interwały', type: 'run', note: '4 × 3 min w tempie ok. 4:05–4:15/km, przerwy 2–3 min truchtu. Po 3–4 tyg. 4 × 4 min.', warn: 'Interwały nie w dzień przed treningiem A.' },
   { name: 'Test 3 km', type: 'run', test: true, note: 'Co 4–6 tyg., w dobrej formie. Cel: ≤3:54/km (≈11:42).' },
 ];
-function applyPlan(s) {
+function applyPlan(s, force) { // force: nadpisz ćwiczenia i treningi planu (przy zmianie wersji planu)
   const ids = {};
   for (const [k, name, pat, start, inc, o = {}] of PLAN_EX) {
-    let ex = s.exercises.find(e => e.name === name);
-    if (!ex) { ex = { id: uid(), name }; s.exercises.push(ex); }
-    Object.assign(ex, { pat, start, inc, ...o });
+    let ex = s.exercises.find(e => e.name === name) || (o.alias && s.exercises.find(e => o.alias.includes(e.name)));
+    const fresh = !ex;
+    if (fresh) { ex = { id: uid(), name }; s.exercises.push(ex); }
+    if (fresh || force) { const { alias, ...rest } = o; ex.name = name; delete ex.ramp; Object.assign(ex, { pat, start, inc, ...rest }); }
     ids[k] = ex.id;
   }
   for (const p of PLAN_W) {
-    if (s.workouts.some(w => w.name === p.name)) continue;
-    s.workouts.push({
-      id: uid(), name: p.name, type: p.type || 'strength', rot: p.rot, note: p.note, warn: p.warn, test: p.test,
-      items: (p.items || []).map(([k, sets, repMin, repMax, rir, rest]) => ({ exId: ids[k], sets, repMin, repMax, rir, rest })),
-    });
+    const items = (p.items || []).map(([k, sets, repMin, repMax, rir, rest]) => ({ exId: ids[k], sets, repMin, repMax, rir, rest }));
+    const cur = s.workouts.find(w => w.name === p.name);
+    if (cur) { if (force) Object.assign(cur, { note: p.note, warn: p.warn, rot: p.rot, items }); continue; }
+    s.workouts.push({ id: uid(), name: p.name, type: p.type || 'strength', rot: p.rot, note: p.note, warn: p.warn, test: p.test, items });
   }
+  s.planV = PLAN_V;
   return s;
 }
 function seed() {
@@ -93,6 +98,7 @@ function seed() {
 }
 function fill(s) {
   s.v = 2;
+  if (s.planV !== PLAN_V) applyPlan(s, true);
   s.shifts ||= {}; s.body ||= {}; s.overrides ||= {};
   s.schedule ||= [null, null, null, null, null, null, null];
   s.settings = { inc: 2.5, rest: 120, height: 187, ...s.settings };
@@ -275,28 +281,23 @@ function viewCal() {
 
 /* ---------- rozgrzewka ---------- */
 const WARM_RUN = ['Biodra: krążenia 10×/stronę, wykroki z rotacją 6×/stronę', '10 min truchtu w tempie rozmownym', 'Skipy i wymachy nóg 2×20 m', '3–4 przebieżki po 20 s (ok. 90% tempa), powrót marszem'];
-const WARM_A = ['Biodra i kostki: głęboki przysiad z pauzą 2×30 s, krążenia bioder 10×/stronę', 'Pośladki: mostek biodrowy 2×12', 'Barki i łopatki: rotacje zewnętrzne z gumą 2×15, 10× podciągnięcie samych łopatek w zwisie'];
+const WARM_A = ['Rower lub wioślarz 4–5 min w lekkim tempie, do lekkiego rozgrzania', "World's greatest stretch: 5 powtórzeń na stronę", 'Mostek biodrowy: 10 powtórzeń, 2 s przytrzymania na górze', 'Przysiad z masą ciała z 2 s pauzą na dole: 8 powtórzeń', 'Rozrywanie gumy przed klatką (band pull-apart): 15 powtórzeń', 'Rotacja zewnętrzna barku z gumą lub na wyciągu: 12 powtórzeń na stronę', 'Face pull z lekkim ciężarem: 1 × 15', 'Przez pierwsze 3–4 tygodnie: goblet squat 2 × 5 z hantlem 16–20 kg'];
+const WARM_B = ['Rower lub wioślarz 4–5 min w lekkim tempie', 'Cat-camel (koci grzbiet): 8 powtórzeń', 'Bird-dog z 2 s pauzą: 6 powtórzeń na stronę', 'Mostek biodrowy: 10 powtórzeń, 2 s przytrzymania na górze', 'Hip hinge z kijem lub bez ciężaru (dzień dobry): 10 powtórzeń, wolno', 'Rotacja klatki piersiowej na czworakach: 6 powtórzeń na stronę', 'Rozrywanie gumy przed klatką: 15 powtórzeń i rotacja zewnętrzna barku 12 na stronę', 'Szyja: izometria w 4 kierunkach (przód, tył, boki), 2 × 20–30 s na kierunek, siła na ok. 5–6 z 10'];
 const PLAN_WARM = {
   'Trening A': WARM_A,
-  'Trening B': ['Zawias: good morning z kijem lub pustym gryfem 2×10, mostek biodrowy 2×12', 'Barki: rotacje zewnętrzne z gumą 2×15, otwarcia klatki 2×10', 'Łopatki: 10× podciągnięcie samych łopatek w zwisie'],
+  'Trening B': WARM_B,
   'Wersja łączona (tydzień z 1 oknem)': WARM_A,
-  'Minimum (30–40 min)': ['Biodra i barki: głęboki przysiad z pauzą 1×30 s, rotacje zewnętrzne z gumą 1×15'],
+  'Minimum (30–40 min)': [WARM_A[0], WARM_A[2], WARM_A[3], WARM_A[5]],
   'Bieg spokojny': ['5 min szybkiego marszu', 'Biodra: krążenia 10×/stronę, wykroki z rotacją 6×/stronę', 'Pierwsze 5 min biegu wolniej niż docelowo'],
   'Interwały': WARM_RUN,
   'Test 3 km': WARM_RUN,
 };
 const WARM_GEN = '5 min lekkiego ruchu (rower, wioślarz albo szybki marsz) – tętno lekko w górę, bez zadyszki';
-const r25 = x => Math.round(x / 2.5) * 2.5;
 function warmup(w) { // ogólne punkty rozgrzewki dnia
-  return w.type === 'run' ? (PLAN_WARM[w.name] || ['5 min szybkiego marszu', '5 min truchtu']) : [WARM_GEN, ...(PLAN_WARM[w.name] || [])];
+  return PLAN_WARM[w.name] || (w.type === 'run' ? ['5 min szybkiego marszu', '5 min truchtu'] : [WARM_GEN]);
 }
-function rampFor(l, ei) { // serie wstępne dochodzące do ciężaru roboczego – tylko dla 3 pierwszych (głównych) ćwiczeń
-  if (l.type !== 'strength' || ei > 2) return null;
-  const e = l.entries[ei], ex = exById(e.exId), top = e.sets[0]?.w || 0;
-  if (ex?.bw && !top) return '2 serie po 3–4 powtórzenia, spokojnie, pełny zakres';
-  if (!top) return 'Po wybraniu ciężaru roboczego: 50% × 5, 70% × 3, 85% × 1';
-  const steps = [[.5, 5], [.7, 3], [.85, 1]].map(([f, n]) => [r25(top * f), n]).filter(([x], i, a) => x > 0 && x < top && a.findIndex(y => y[0] === x) === i);
-  return steps.map(([x, n]) => `${kg(x)} × ${n}`).join(' → ') + ` → robocze ${kg(top)}`;
+function rampFor(l, ei) { // serie wstępne ćwiczenia (stałe, z planu)
+  return exById(l.entries[ei].exId)?.ramp || null;
 }
 
 /* ---------- widok dnia ---------- */

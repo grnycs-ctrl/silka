@@ -1,5 +1,5 @@
 // Network-first z fallbackiem do cache: online dostajesz zawsze świeżą wersję, na siłowni bez zasięgu działa offline.
-const CACHE = 'silka-v5';
+const CACHE = 'silka-v6';
 const FILES = ['./', 'index.html', 'styles.css', 'app.js', 'manifest.webmanifest', 'icon.svg', 'icon-192.png', 'icon-512.png'];
 
 self.addEventListener('install', e => {
