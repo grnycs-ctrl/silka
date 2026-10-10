@@ -72,19 +72,23 @@ const PLAN_W = [
   { name: 'Test 3 km', type: 'run', test: true, note: 'Co 4–6 tyg., w dobrej formie. Cel: ≤3:54/km (≈11:42).' },
 ];
 function applyPlan(s, force) { // force: nadpisz ćwiczenia i treningi planu (przy zmianie wersji planu)
-  const ids = {};
-  for (const [k, name, pat, start, inc, o = {}] of PLAN_EX) {
+  const ids = {}, defs = Object.fromEntries(PLAN_EX.map(d => [d[0], d]));
+  const ensure = k => {
+    if (ids[k]) return ids[k];
+    const [, name, pat, start, inc, o = {}] = defs[k];
     let ex = s.exercises.find(e => e.name === name) || (o.alias && s.exercises.find(e => o.alias.includes(e.name)));
     const fresh = !ex;
     if (fresh) { ex = { id: uid(), name }; s.exercises.push(ex); }
     if (fresh || force) { const { alias, ...rest } = o; ex.name = name; delete ex.ramp; Object.assign(ex, { pat, start, inc, ...rest }); }
-    ids[k] = ex.id;
-  }
+    return (ids[k] = ex.id);
+  };
+  if (force) PLAN_EX.forEach(d => ensure(d[0]));
   for (const p of PLAN_W) {
-    const items = (p.items || []).map(([k, sets, repMin, repMax, rir, rest]) => ({ exId: ids[k], sets, repMin, repMax, rir, rest }));
     const cur = s.workouts.find(w => w.name === p.name);
-    if (cur) { if (force) Object.assign(cur, { note: p.note, warn: p.warn, rot: p.rot, items }); continue; }
-    s.workouts.push({ id: uid(), name: p.name, type: p.type || 'strength', rot: p.rot, note: p.note, warn: p.warn, test: p.test, items });
+    if (cur && !force) continue;
+    const items = (p.items || []).map(([k, sets, repMin, repMax, rir, rest]) => ({ exId: ensure(k), sets, repMin, repMax, rir, rest }));
+    if (cur) Object.assign(cur, { note: p.note, warn: p.warn, rot: p.rot, items });
+    else s.workouts.push({ id: uid(), name: p.name, type: p.type || 'strength', rot: p.rot, note: p.note, warn: p.warn, test: p.test, items });
   }
   s.planV = PLAN_V;
   return s;
@@ -94,7 +98,7 @@ function seed() {
     v: 2, exercises: [], workouts: [], schedule: [null, null, null, null, null, null, null], overrides: {}, logs: [],
     shifts: {}, body: {}, deloadDate: null,
     settings: { inc: 2.5, rest: 120, height: 187 },
-  });
+  }, true);
 }
 function fill(s) {
   s.v = 2;
@@ -420,6 +424,7 @@ function viewExList() {
     return `<div class="li" data-act="openEx" data-id="${e.id}"><div class="grow"><b>${esc(e.name)}</b><small>${last ? `ostatnio ${shortDate(last.date)}: ${last.sets.map(x => `${kg(x.w)}×${x.r}`).join(' ')}` : 'brak wpisów'}</small></div><span class="chip">${s.length}×</span></div>`;
   }).join('');
   return `${hdr('Ćwiczenia')}
+  <div class="btns" style="margin:0 0 12px"><button class="pri" data-act="exNew">+ Dodaj ćwiczenie</button></div>
   <div class="card li" data-act="openEx" data-id="run" style="margin-bottom:12px"><div class="grow"><b>🏃 Bieganie</b><small>${runs.length} biegów · ${kg(km)} km łącznie</small></div><span class="chip">›</span></div>
   <input data-f="q" placeholder="Szukaj ćwiczenia…" value="${esc(ui.q || '')}" style="margin-bottom:10px">
   <div class="card" style="padding:4px 14px">${list || '<p class="muted">Brak wyników.</p>'}</div>`;
@@ -462,10 +467,25 @@ function viewEx() {
   <div class="stats"><div><b>${prSet ? kg(prSet.w) : '–'}</b><small>rekord kg${prSet ? ` ×${prSet.r}` : ''}</small></div><div><b>${s.length ? kg(Math.round(Math.max(...s.map(x => e1rm(x.sets))) * 10) / 10) : '–'}</b><small>szac. 1RM</small></div><div><b>${s.length}</b><small>treningi</small></div></div>
   ${stagnant(ex.id, '9999') ? banner('warn', '3 ostatnie sesje bez progresu. Zmień zakres powtórzeń lub wariant, albo zrób deload.') : ''}
   <div class="card">${seg([['top', 'Ciężar'], ['e1rm', '1RM'], ['vol', 'Objętość'], ['reps', 'Powt.']], metric)}${chart(pts, v => kg(Math.round(v)))}</div>
-  <div class="card"><div class="f"><label>Krok progresji (kg)</label><input inputmode="decimal" data-f="exinc" value="${kg(exInc(ex.id))}"></div>
-  <div class="f" style="margin:0"><label>Ciężar startowy przy pierwszym razie (kg)</label><input inputmode="decimal" data-f="exstart" value="${ex.start ? kg(ex.start) : ''}"></div></div>
   <h2>Historia</h2><div class="card" style="padding:4px 14px">${hist || '<p class="muted">Brak wpisów – zrób pierwszy trening.</p>'}</div>
-  <div class="btns"><button data-act="renameEx">Zmień nazwę</button></div>`;
+  <div class="btns"><button data-act="exEdit">✏️ Edytuj</button><button class="dng" data-act="exDel">🗑 Usuń</button></div>`;
+}
+
+function viewExForm() {
+  const isNew = ui.exForm === 'new', ex = isNew ? { name: '' } : exById(ui.exForm);
+  if (!ex) return hdr('Brak ćwiczenia', true);
+  const sel = (id, opts, cur) => `<select id="${id}">${opts.map(([k, t]) => `<option value="${k}" ${String(cur || '') === k ? 'selected' : ''}>${t}</option>`).join('')}</select>`;
+  return `${hdr(isNew ? 'Nowe ćwiczenie' : 'Edytuj ćwiczenie', true)}
+  <div class="card">
+    <div class="f"><label>Nazwa</label><input id="fname" value="${esc(ex.name)}" placeholder="np. Wyciskanie francuskie"></div>
+    <div class="f"><label>Rodzaj (do bilansu pchanie / ciągnięcie)</label>${sel('fpat', [['', 'Inne'], ['legs', 'Nogi'], ['push', 'Pchanie'], ['pull', 'Ciągnięcie'], ['core', 'Brzuch / tułów'], ['arm', 'Ramiona / izolacja'], ['carry', 'Noszenie']], ex.pat)}</div>
+    <div class="f"><label>Co liczysz w serii</label>${sel('funit', [['', 'Powtórzenia'], ['m', 'Metry']], ex.unit)}</div>
+    <div class="f"><label>Ćwiczenie z masą ciała?</label>${sel('fbw', [['', 'Nie'], ['1', 'Tak (0 kg = sama masa ciała)']], ex.bw ? '1' : '')}</div>
+    <div class="f"><label>Ciężar startowy (kg)</label><input id="fstart" inputmode="decimal" value="${ex.start ? kg(ex.start) : ''}"></div>
+    <div class="f"><label>Krok progresji (kg) – puste = domyślny ${kg(state.settings.inc)}</label><input id="finc" inputmode="decimal" value="${ex.inc ? kg(ex.inc) : ''}"></div>
+    <div class="f" style="margin:0"><label>Serie wstępne (opcjonalnie)</label><input id="framp" value="${esc(ex.ramp || '')}" placeholder="np. 20 kg × 8 → 40 kg × 5 → robocze 60 kg"></div>
+  </div>
+  <div class="btns"><button class="pri" data-act="exSave">Zapisz</button><button data-act="back">Anuluj</button></div>`;
 }
 
 function viewRunStats() {
@@ -550,7 +570,7 @@ function viewEditWorkout() {
   <div class="btns"><button class="dng" data-act="delW">Usuń trening</button></div>`;
 }
 
-const views = { cal: viewCal, today: viewDay, day: viewDay, ex: () => (ui.exId ? viewEx() : viewExList()), body: viewBody, plan: viewPlan };
+const views = { cal: viewCal, today: viewDay, day: viewDay, ex: () => (ui.exForm ? viewExForm() : ui.exId ? viewEx() : viewExList()), body: viewBody, plan: viewPlan };
 function render() {
   const tab = ui.tab === 'day' ? 'cal' : ui.tab;
   $('#app').innerHTML = views[ui.tab]();
@@ -588,7 +608,7 @@ const A = {
   tab: el => {
     const t = el.dataset.tab;
     if (t === 'today') go({ tab: 'today', date: today() });
-    else go({ tab: t, exId: null, wid: null });
+    else go({ tab: t, exId: null, exForm: null, wid: null });
   },
   back: () => history.back(),
   day: el => {
@@ -652,9 +672,32 @@ const A = {
   finish: () => { const l = getLog(ui.date); l.status = 'done'; commit(l); tm.end = 0; tick(); render(); window.scrollTo(0, 0); },
   timerAdd: () => { tm.end += 15000; tick(); },
   timerStop: () => { tm.end = 0; tick(); },
-  renameEx: () => {
-    const ex = exById(ui.exId), n = prompt('Nowa nazwa ćwiczenia:', ex.name);
-    if (n && n.trim()) { ex.name = n.trim(); save(); render(); }
+  exNew: () => go({ exForm: 'new' }),
+  exEdit: () => go({ exForm: ui.exId }),
+  exSave: () => {
+    const name = $('#fname').value.trim();
+    if (!name) return alert('Podaj nazwę ćwiczenia.');
+    const isNew = ui.exForm === 'new', ex = isNew ? { id: uid() } : exById(ui.exForm);
+    if (state.exercises.some(e => e !== ex && e.name.toLowerCase() === name.toLowerCase())) return alert('Ćwiczenie o takiej nazwie już istnieje.');
+    ex.name = name;
+    ex.pat = $('#fpat').value || undefined;
+    ex.unit = $('#funit').value || undefined;
+    ex.bw = $('#fbw').value ? 1 : undefined;
+    ex.start = num($('#fstart').value);
+    ex.inc = num($('#finc').value) || undefined;
+    ex.ramp = $('#framp').value.trim() || undefined;
+    if (isNew) state.exercises.push(ex);
+    save(); history.back();
+  },
+  exDel: () => {
+    const ex = exById(ui.exId), n = sessionsFor(ex.id).length;
+    if (!confirm(`Usunąć „${ex.name}”?${n ? ` Zapisana historia (${n} ${n === 1 ? 'sesja' : 'sesji'}) też zniknie.` : ''} Ćwiczenie zniknie też z treningów w planie.`)) return;
+    state.exercises = state.exercises.filter(e => e !== ex);
+    for (const w of state.workouts) w.items = w.items.filter(i => i.exId !== ex.id);
+    for (const l of state.logs) if (l.entries) l.entries = l.entries.filter(e => e.exId !== ex.id);
+    state.logs = state.logs.filter(l => l.type !== 'strength' || l.entries.length);
+    for (const k in drafts) delete drafts[k];
+    save(); history.back();
   },
   sched: el => { state.schedule[+el.dataset.i] = el.value || null; save(); },
   editW: el => go({ wid: el.dataset.id }),
@@ -725,8 +768,6 @@ document.addEventListener('input', e => {
   } else if (f === 'inc') { state.settings.inc = num(el.value) || 2.5; save(); }
   else if (f === 'rest') { state.settings.rest = Math.max(10, Math.round(num(el.value)) || 120); save(); }
   else if (f === 'height') { state.settings.height = num(el.value) || 187; save(); }
-  else if (f === 'exinc') { exById(ui.exId).inc = num(el.value) || undefined; save(); }
-  else if (f === 'exstart') { exById(ui.exId).start = num(el.value) || 0; save(); }
   else if (f === 'wname') { wById(ui.wid).name = el.value; save(); }
   else if (f === 'wnote') { wById(ui.wid).note = el.value; save(); }
   else if (f === 'wi') { wById(ui.wid).items[+el.dataset.i][el.dataset.k] = Math.max(1, Math.round(num(el.value)) || 1); save(); }
