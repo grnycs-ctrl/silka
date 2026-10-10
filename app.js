@@ -347,7 +347,8 @@ function viewStrength(l, w) {
       return `<div class="li"><div class="grow"><b>${esc(exById(e.exId)?.name || '?')}</b><small>${sets.length ? sets.map(s => `${kg(s.w)}×${s.r}${s.x != null ? ` @${s.x}` : ''}`).join(' · ') : 'nie zrobione'}</small></div></div>`;
     }).join('');
     return `<div class="card" style="padding:4px 14px">${rows}</div><p class="muted" style="text-align:center">Objętość: <b>${Math.round(vol)}</b> kg</p>
-      <button class="big" data-act="resume">Wznów / edytuj wyniki</button>`;
+      <button class="big" data-act="resume">Wznów / edytuj wyniki</button>
+      <div class="btns"><button class="dng" data-act="discard">🗑 Usuń ten trening z historii</button></div>`;
   }
   // live
   const step = Math.max(0, Math.min(n + 1, l.step || 0));
@@ -360,7 +361,8 @@ function viewStrength(l, w) {
   } else if (step <= n) main = exCard(l, w, step - 1, true) + (step === n ? addExSel(l) : '');
   else main = `<section class="card"><h3>Koniec treningu 💪</h3><p class="muted">Objętość: <b>${Math.round(vol)}</b> kg</p></section>`;
   const nxt = step < n ? `Dalej: ${esc(exById(l.entries[step].exId)?.name || '')} →` : step === n ? 'Zakończ trening ✓' : 'Zapisz i zamknij ✓';
-  return `${chips}${main}<div class="btns">${step > 0 ? `<button data-act="step" data-i="${step - 1}">← Wstecz</button>` : ''}<button class="pri" data-act="${step < n ? 'step' : 'finish'}" data-i="${step + 1}">${nxt}</button></div>`;
+  return `${chips}${main}<div class="btns">${step > 0 ? `<button data-act="step" data-i="${step - 1}">← Wstecz</button>` : ''}<button class="pri" data-act="${step < n ? 'step' : 'finish'}" data-i="${step + 1}">${nxt}</button></div>
+    <div class="btns" style="margin-top:18px">${logDone(l) ? '<button data-act="stop">Przerwij – zachowaj wyniki</button>' : ''}<button class="dng" data-act="discard">${logDone(l) ? '🗑 Odrzuć trening' : '↩ Cofnij start'}</button></div>`;
 }
 
 function viewDay() {
@@ -678,6 +680,17 @@ const A = {
   step: el => { const l = getLog(ui.date); l.step = +el.dataset.i; commit(l); render(); window.scrollTo(0, 0); },
   wuTog: el => { const l = getLog(ui.date); l.wu ||= {}; l.wu[el.dataset.k] = !l.wu[el.dataset.k]; commit(l); render(); },
   finish: () => { const l = getLog(ui.date); l.status = 'done'; commit(l); tm.end = 0; tick(); render(); window.scrollTo(0, 0); },
+  stop: () => { // przerwij, ale zostaw zapisane serie
+    if (!confirm('Przerwać trening? Zrobione serie zostaną zapisane w historii.')) return;
+    const l = getLog(ui.date); l.status = 'done'; commit(l); tm.end = 0; tick(); render(); window.scrollTo(0, 0);
+  },
+  discard: () => { // wycofaj: usuń wpis dnia, plan na ten dzień zostaje
+    const l = getLog(ui.date);
+    if (logDone(l) && !confirm('Usunąć ten trening razem ze wszystkimi wpisanymi wynikami? Tego nie da się cofnąć.')) return;
+    state.logs = state.logs.filter(x => x !== l);
+    delete drafts[ui.date];
+    save(); tm.end = 0; tick(); render(); window.scrollTo(0, 0);
+  },
   timerAdd: () => { tm.end += 15000; tick(); },
   timerStop: () => { tm.end = 0; tick(); },
   exNew: () => go({ exForm: 'new' }),
