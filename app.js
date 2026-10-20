@@ -334,11 +334,16 @@ function viewStrength(l, w) {
   const n = l.entries.length, vol = l.entries.reduce((a, e) => a + volume(e.sets.filter(s => s.d)), 0);
   const mode = l.status === 'live' ? 'live' : (l.status === 'done' || logDone(l)) ? 'sum' : 'pre';
   if (mode === 'pre') {
-    const rows = l.entries.map(e => {
-      const it = w.items.find(i => i.exId === e.exId), s = e.sets[0], ex = exById(e.exId);
-      return `<div class="li"><div class="grow"><b>${esc(ex?.name || '?')}</b><small>${e.sets.length}×${it ? it.repMin + (it.repMax !== it.repMin ? '–' + it.repMax : '') : ''}${it?.rir ? ` · RIR ${it.rir}` : ''}</small></div><span class="chip">${s.w ? kg(s.w) + ' kg' : ex?.bw ? 'MC' : '–'} × ${s.r}</span></div>`;
+    const rows = l.entries.map((e, ei) => {
+      const it = w.items.find(i => i.exId === e.exId), s = e.sets[0], ex = exById(e.exId), last = lastSession(e.exId, l.date), u = unitOf(e.exId);
+      return `<div class="pre"><div class="row sp"><b>${esc(ex?.name || '?')}</b><small>${it ? `${it.sets}×${it.repMin}${it.repMax !== it.repMin ? '–' + it.repMax : ''}${it.rir ? ` · RIR ${it.rir}` : ''}` : ''}</small></div>
+        ${last ? `<small class="muted">Ostatnio (${shortDate(last.date)}): ${last.sets.map(x => `${kg(x.w)}×${x.r}`).join(', ')}</small>` : ''}
+        <div class="ed3p"><label>serie<input inputmode="numeric" data-f="ps" data-e="${ei}" value="${e.sets.length}"></label>
+        <label>${ex?.bw ? 'kg (puste = masa ciała)' : 'kg'}<input inputmode="decimal" data-f="pw" data-e="${ei}" value="${s.w ? kg(s.w) : ''}"></label>
+        <label>${u}<input inputmode="numeric" data-f="pr" data-e="${ei}" value="${s.r || ''}"></label></div></div>`;
     }).join('');
     return `<div class="card" style="padding:4px 14px">${w.note ? `<p class="muted">${esc(w.note)}</p>` : ''}${rows}</div>
+      <p class="muted" style="margin:0 0 8px">Wartości są podpowiedzią z progresji – możesz je tu zmienić przed startem (np. wg zaleceń trenera). Kolejne treningi liczą się z tego, co faktycznie zrobisz.</p>
       <button class="pri big" data-act="start">▶ Start</button>${addExSel(l)}`;
   }
   if (mode === 'sum') {
@@ -783,6 +788,17 @@ document.addEventListener('input', e => {
   const el = e.target, f = el.dataset.f;
   if (!f) return;
   if (f === 'q') { ui.q = el.value; const pos = el.selectionStart; render(); const n = $('[data-f=q]'); n.focus(); n.setSelectionRange(pos, pos); return; }
+  if (f === 'pw' || f === 'pr' || f === 'ps') { // edycja planu dnia przed startem
+    const l = getLog(ui.date), e = l.entries[+el.dataset.e];
+    if (f === 'ps') {
+      const n = Math.round(num(el.value));
+      if (n < 1 || n > 12) return;
+      while (e.sets.length < n) { const p = e.sets[e.sets.length - 1]; e.sets.push({ w: p.w, r: p.r, x: null, d: false }); }
+      e.sets.length = n;
+    } else for (const st of e.sets) if (!st.d) st[f === 'pw' ? 'w' : 'r'] = f === 'pw' ? num(el.value) : Math.round(num(el.value));
+    commit(l);
+    return;
+  }
   if (f === 'w' || f === 'r' || f === 'x') {
     const l = getLog(ui.date), s = l.entries[+el.dataset.e].sets[+el.dataset.s];
     s[f] = f === 'w' ? num(el.value) : f === 'x' ? (el.value.trim() === '' ? null : Math.round(num(el.value))) : Math.round(num(el.value));
