@@ -340,10 +340,11 @@ function viewStrength(l, w) {
         ${last ? `<small class="muted">Ostatnio (${shortDate(last.date)}): ${last.sets.map(x => `${kg(x.w)}×${x.r}`).join(', ')}</small>` : ''}
         <div class="ed3p"><label>serie<input inputmode="numeric" data-f="ps" data-e="${ei}" value="${e.sets.length}"></label>
         <label>${ex?.bw ? 'kg (puste = masa ciała)' : 'kg'}<input inputmode="decimal" data-f="pw" data-e="${ei}" value="${s.w ? kg(s.w) : ''}"></label>
-        <label>${u}<input inputmode="numeric" data-f="pr" data-e="${ei}" value="${s.r || ''}"></label></div></div>`;
+        <label>${u}<input inputmode="numeric" data-f="pr" data-e="${ei}" value="${s.r || ''}"></label></div>
+        ${it ? `<div class="ed3p rng"><label>zakres w planie – od<input inputmode="numeric" data-f="pmin" data-e="${ei}" value="${it.repMin}"></label><label>do<input inputmode="numeric" data-f="pmax" data-e="${ei}" value="${it.repMax}"></label><label>RIR<input data-f="prir" data-e="${ei}" value="${esc(it.rir || '')}" placeholder="2–3"></label></div>` : ''}</div>`;
     }).join('');
     return `<div class="card" style="padding:4px 14px">${w.note ? `<p class="muted">${esc(w.note)}</p>` : ''}${rows}</div>
-      <p class="muted" style="margin:0 0 8px">Wartości są podpowiedzią z progresji – możesz je tu zmienić przed startem (np. wg zaleceń trenera). Kolejne treningi liczą się z tego, co faktycznie zrobisz.</p>
+      <p class="muted" style="margin:0 0 8px">Serie, kg i powtórzenia to podpowiedź z progresji – zmieniasz je tylko na dziś. Zakres i RIR zmieniasz na stałe dla tego treningu. Kolejne treningi liczą się z tego, co faktycznie zrobisz.</p>
       <button class="pri big" data-act="start">▶ Start</button>${addExSel(l)}`;
   }
   if (mode === 'sum') {
@@ -828,6 +829,23 @@ document.addEventListener('input', e => {
 document.addEventListener('change', e => {
   const el = e.target;
   if (el.tagName === 'SELECT' && el.dataset.act) A[el.dataset.act](el);
+  else if (['pmin', 'pmax', 'prir'].includes(el.dataset.f)) {
+    const l = getLog(ui.date), e = l.entries[+el.dataset.e], it = wById(l.wid)?.items.find(i => i.exId === e.exId);
+    if (it) {
+      if (el.dataset.f === 'prir') it.rir = el.value.trim();
+      else {
+        const v = Math.max(1, Math.round(num(el.value)) || 1);
+        if (el.dataset.f === 'pmin') { it.repMin = v; if (it.repMax < v) it.repMax = v; } else { it.repMax = v; if (it.repMin > v) it.repMin = v; }
+        for (const st of e.sets) if (!st.d) st.r = Math.min(it.repMax, Math.max(it.repMin, st.r || it.repMin)); // cel na dziś w nowym zakresie
+        // bez przerysowania ekranu, żeby nie gubić fokusu przy edycji kolejnego pola
+        const q = f => document.querySelector(`[data-f=${f}][data-e="${el.dataset.e}"]`);
+        if (q('pr') && document.activeElement !== q('pr')) q('pr').value = e.sets[0].r;
+        if (q('pmin') && document.activeElement !== q('pmin')) q('pmin').value = it.repMin;
+        if (q('pmax') && document.activeElement !== q('pmax')) q('pmax').value = it.repMax;
+      }
+      save(); commit(l);
+    }
+  }
   else if (el.dataset.f === 'bdate') { ui.bdate = el.value || today(); render(); }
   else if (['bw', 'bwaist', 'bhr'].includes(el.dataset.f)) render();
   if (el.id === 'file' && el.files[0]) {
