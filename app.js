@@ -35,38 +35,41 @@ const parseTime = s => { // "25:30", "1:05:00" lub samo "25" (minuty) -> sekundy
 
 /* ---------- plan treningowy ---------- */
 // [klucz, nazwa, wzorzec, ciężar startowy, krok progresji, opcje]
-const PLAN_V = 2; // zmiana numeru nadpisuje ćwiczenia planu u użytkownika ze starszą wersją
-// [klucz, nazwa, wzorzec, ciężar startowy, krok progresji, opcje: bw, unit, ramp (serie wstępne), alias (stare nazwy)]
+const PLAN_V = 3; // zmiana numeru nadpisuje ćwiczenia i treningi planu u użytkownika ze starszą wersją
+// [klucz, nazwa, wzorzec, ciężar startowy, krok progresji, opcje: bw, unit, ramp (serie wstępne; {w} = ciężar roboczy), alias (stare nazwy)]
 const PLAN_EX = [
-  ['squat', 'Przysiad ze sztangą na plecach', 'legs', 60, 2.5, { ramp: '20 kg × 8 → 30 kg × 5 → 40 kg × 3 → 50 kg × 2 → robocze 60 kg' }],
-  ['bench', 'Wyciskanie leżąc', 'push', 77.5, 2.5, { alias: ['Wyciskanie sztangi leżąc (chwyt ≤1,5× szer. barków)'], ramp: '20 kg × 10 → 40 kg × 6 → 55 kg × 4 → 65 kg × 2 → robocze 77,5 kg' }],
-  ['benchb', 'Wyciskanie leżąc – seria po ciężkich', 'push', 70, 2.5],
+  ['squat', 'Przysiad ze sztangą na plecach', 'legs', 60, 5, { ramp: '20 kg × 8 → 30 kg × 5 → 40 kg × 3 → 50 kg × 2 → robocze {w}' }],
+  ['bench', 'Wyciskanie leżąc', 'push', 80, 2.5, { alias: ['Wyciskanie sztangi leżąc (chwyt ≤1,5× szer. barków)'], ramp: '20 kg × 10 → 40 kg × 6 → 55 kg × 4 → 65 kg × 2 → robocze {w}' }],
+  ['benchb', 'Wyciskanie leżąc – seria lżejsza (na końcu)', 'push', 72.5, 2.5, { alias: ['Wyciskanie leżąc – seria po ciężkich'] }],
   ['pu', 'Podciąganie nachwytem', 'pull', 0, 2.5, { bw: 1, ramp: 'Zwis 10 s + 3 powtórzenia → robocze: masa ciała' }],
-  ['rdl', 'RDL ze sztangą', 'legs', 60, 2.5, { alias: ['RDL (gdy brak trap bara)'], ramp: '40 kg × 5 → 50 kg × 3 → robocze 60 kg' }],
-  ['curl', 'Uginanie nóg leżąc', 'legs', 50, 2.5],
-  ['lr', 'Wznosy bokiem na wyciągu', 'arm', 5, 1],
-  ['tri', 'Wyprost tricepsa nad głową na wyciągu', 'arm', 20, 2.5, { alias: ['Triceps na wyciągu'] }],
-  ['bic', 'Uginanie hantli na ławce skośnej (kg na rękę)', 'arm', 10, 2, { alias: ['Uginanie hantli (biceps)'] }],
-  ['carry', 'Suitcase carry (metry)', 'carry', 24, 2, { unit: 'm' }],
-  ['trap', 'Martwy ciąg trap bar', 'legs', 90, 5, { ramp: 'Sam gryf × 8 → 50 kg × 5 → 70 kg × 3 → 80 kg × 1 → robocze 90 kg' }],
-  ['ohp', 'Wyciskanie hantli nad głowę siedząc (kg na hantlę)', 'push', 20, 2, { ramp: '10 kg × 8 → 14 kg × 4 → robocze 20 kg' }],
-  ['row', 'Wiosłowanie z podparciem klatki', 'pull', 0, 2.5, { ramp: 'Lekko × 8 → robocze' }],
-  ['bulg', 'Przysiad bułgarski z hantlami (kg na rękę, na nogę)', 'legs', 14, 2, { alias: ['Split squat / wykroki chodzone (hantle, na nogę)'], ramp: 'Masa ciała × 6 na nogę → robocze 14 kg' }],
-  ['inc', 'Wyciskanie hantli na skosie 30° (chwyt neutralny)', 'push', 20, 2, { alias: ['Wyciskanie hantli na skosie dodatnim 30° (chwyt neutralny)'] }],
+  ['rdl', 'RDL ze sztangą', 'legs', 65, 5, { alias: ['RDL (gdy brak trap bara)'], ramp: '40 kg × 5 → 50 kg × 3 → robocze {w}' }],
+  ['curl', 'Uginanie nóg leżąc', 'legs', 55, 2.5],
+  ['lr', 'Wznosy bokiem na wyciągu', 'arm', 10, 2.5],
+  ['tri', 'Wyprost tricepsa nad głową na wyciągu', 'arm', 30, 2.5, { alias: ['Triceps na wyciągu'] }],
+  ['bic', 'Uginanie hantli na ławce skośnej (kg na rękę)', 'arm', 12.5, 2.5, { alias: ['Uginanie hantli (biceps)'] }],
+  ['fp', 'Face pull', 'pull', 25, 2.5, { alias: ['Face pull + rotacja zewnętrzna na wyciągu'] }],
+  ['carry', 'Suitcase carry (metry)', 'carry', 25, 2.5, { unit: 'm' }],
+  ['trap', 'Martwy ciąg trap bar', 'legs', 100, 5, { ramp: 'Sam gryf × 8 → 50 kg × 5 → 70 kg × 3 → 80 kg × 1 → robocze {w}' }],
+  ['ohp', 'Wyciskanie hantli nad głowę siedząc (kg na hantlę)', 'push', 22.5, 2.5, { ramp: '10 kg × 8 → 14 kg × 4 → robocze {w}' }],
+  ['row', 'Wiosłowanie z podparciem klatki', 'pull', 40, 2.5, { ramp: 'Lekko × 8 → robocze {w}' }],
+  ['bulg', 'Przysiad bułgarski z hantlami (kg na rękę, na nogę)', 'legs', 15, 2.5, { alias: ['Split squat / wykroki chodzone (hantle, na nogę)'], ramp: 'Masa ciała × 6 na nogę → robocze {w}' }],
+  ['inc', 'Wyciskanie hantli na skosie 30° (chwyt neutralny)', 'push', 22.5, 2.5, { alias: ['Wyciskanie hantli na skosie dodatnim 30° (chwyt neutralny)'] }],
   ['lpd', 'Ściąganie drążka chwytem neutralnym', 'pull', 50, 2.5],
-  ['allah', 'Allahy', 'core', 30, 2.5],
+  ['allah', 'Allahy', 'core', 40, 2.5],
   ['legext', 'Wyprost nóg na maszynie (opcjonalnie)', 'legs', 0, 2.5],
 ];
-// pozycje: [klucz, serie, od, do, RIR, przerwa (s)]
+// pozycje: [klucz, serie, od, do, RIR, przerwa s (0 = bez timera), grupa superserii, ciężar od trenera (jednorazowo)]
 const PLAN_W = [
-  { name: 'Trening A', rot: 'A', note: 'Przysiad · wyciskanie · podciąganie · RDL. Ok. 75–85 min. Opcjonalnie na końcu: wyprost nóg na maszynie 2×10–15, RIR 0–1.',
-    items: [['squat', 4, 4, 6, '2–3', 180], ['bench', 3, 4, 6, '2', 150], ['benchb', 1, 8, 10, '2', 120], ['pu', 3, 5, 8, '2', 120], ['rdl', 3, 6, 8, '2–3', 120], ['curl', 3, 8, 12, '1', 90], ['lr', 3, 10, 15, '0–1', 60], ['tri', 2, 10, 15, '0–1', 60], ['bic', 2, 10, 15, '0–1', 60], ['carry', 2, 30, 40, '', 60]] },
-  { name: 'Trening B', rot: 'B', note: 'Martwy ciąg · wyciskanie nad głowę · plecy · nogi. Ciężar „dobierz”: tak, by ostatnie powtórzenie zostawiało zapas zgodny z RIR; po pierwszej sesji popraw ciężar startowy przy ćwiczeniu.',
-    items: [['trap', 3, 3, 5, '2–3', 180], ['ohp', 3, 6, 10, '1–2', 120], ['row', 3, 8, 12, '1–2', 120], ['bulg', 3, 6, 10, '1–2', 90], ['inc', 3, 8, 12, '1', 120], ['lpd', 3, 8, 12, '1', 120], ['curl', 2, 10, 15, '0–1', 90], ['lr', 3, 12, 20, '0–1', 60], ['allah', 3, 10, 15, '0–1', 60]] },
+  { name: 'Trening A', rot: 'A', note: 'Przysiad · wyciskanie · podciąganie · RDL. Ok. 75–85 min. Pary 5, 6 robisz naprzemiennie (superseria). Opcjonalnie na końcu: wyprost nóg na maszynie 2×10–15, RIR 0–1.',
+    items: [['squat', 4, 5, 6, '2', 180, '', 60], ['bench', 3, 4, 6, '2', 150, '', 80], ['benchb', 1, 8, 10, '2', 0, '', 72.5], ['pu', 3, 6, 8, '2', 120, '', 0], ['rdl', 3, 6, 8, '2–3', 120, '', 65],
+      ['curl', 3, 8, 12, '1', 60, '5', 55], ['lr', 3, 10, 15, '0–1', 60, '5', 10], ['tri', 2, 10, 15, '0–1', 60, '6', 30], ['bic', 2, 10, 15, '0–1', 60, '6', 12.5], ['fp', 2, 15, 20, '1–2', 60, '', 25], ['carry', 2, 30, 40, '', 60, '', 25]] },
+  { name: 'Trening B', rot: 'B', note: 'Martwy ciąg · wyciskanie nad głowę · plecy · nogi. Para 7 (uginanie nóg + wznosy) naprzemiennie: dwie pary, dwie ostatnie serie wznosów osobno.',
+    items: [['trap', 3, 4, 5, '2', 180, '', 100], ['ohp', 3, 6, 8, '1–2', 120, '', 22.5], ['row', 4, 10, 12, '1', 120, '', 40], ['bulg', 3, 8, 10, '1–2', 90, '', 15], ['inc', 4, 10, 12, '1', 120, '', 22.5], ['lpd', 3, 10, 12, '1', 120, '', 50],
+      ['curl', 2, 10, 12, '0–1', 60, '7', 60], ['lr', 4, 12, 15, '0–1', 60, '7', 10], ['allah', 3, 10, 12, '0–1', 60, '', 40]] },
   { name: 'Wersja łączona (tydzień z 1 oknem)', note: '1 bój nóg, 1 pchanie, 1 ciągnięcie, RIR 1–2, plus noszenie. Nie przesuwa kolejki A/B.',
-    items: [['squat', 3, 4, 6, '1–2', 180], ['bench', 3, 4, 6, '1–2', 150], ['pu', 3, 5, 8, '1–2', 120], ['carry', 2, 30, 40, '', 60]] },
+    items: [['squat', 3, 5, 6, '1–2', 180], ['bench', 3, 4, 6, '1–2', 150], ['pu', 3, 6, 8, '1–2', 120], ['carry', 2, 30, 40, '', 60]] },
   { name: 'Minimum (30–40 min)', note: 'Tydzień kryzysowy: 2 serie robocze każdego boju głównego + noszenie. Nie przesuwa kolejki A/B.',
-    items: [['squat', 2, 4, 6, '1–2', 150], ['bench', 2, 4, 6, '1–2', 150], ['pu', 2, 5, 8, '1–2', 120], ['carry', 2, 30, 40, '', 60]] },
+    items: [['squat', 2, 5, 6, '1–2', 150], ['bench', 2, 4, 6, '1–2', 150], ['pu', 2, 6, 8, '1–2', 120], ['carry', 2, 30, 40, '', 60]] },
   { name: 'Bieg spokojny', type: 'run', note: '30 min, w 6–8 tyg. dojdź do 40. Tętno ok. 130–145, tempo rozmowne (pełne zdania). Liczy się tętno, nie tempo.' },
   { name: 'Interwały', type: 'run', note: '4 × 3 min w tempie ok. 4:05–4:15/km, przerwy 2–3 min truchtu. Po 3–4 tyg. 4 × 4 min.', warn: 'Interwały nie w dzień przed treningiem A.' },
   { name: 'Test 3 km', type: 'run', test: true, note: 'Co 4–6 tyg., w dobrej formie. Cel: ≤3:54/km (≈11:42).' },
@@ -86,11 +89,12 @@ function applyPlan(s, force) { // force: nadpisz ćwiczenia i treningi planu (pr
   for (const p of PLAN_W) {
     const cur = s.workouts.find(w => w.name === p.name);
     if (cur && !force) continue;
-    const items = (p.items || []).map(([k, sets, repMin, repMax, rir, rest]) => ({ exId: ensure(k), sets, repMin, repMax, rir, rest }));
+    const items = (p.items || []).map(([k, sets, repMin, repMax, rir, rest, pair, tw]) => ({ exId: ensure(k), sets, repMin, repMax, rir, rest, pair: pair || undefined, tw }));
     if (cur) Object.assign(cur, { note: p.note, warn: p.warn, rot: p.rot, items });
     else s.workouts.push({ id: uid(), name: p.name, type: p.type || 'strength', rot: p.rot, note: p.note, warn: p.warn, test: p.test, items });
   }
   s.planV = PLAN_V;
+  if (force) s.planAt = today(); // od tej daty ciężary „od trenera” obowiązują jednorazowo
   return s;
 }
 function seed() {
@@ -185,15 +189,20 @@ function stagnant(exId, before) { // 3 sesje z rzędu bez poprawy względem sesj
   return s.slice(-3).every(x => score(x.sets) <= base + 0.01);
 }
 
-// Podwójna progresja: wszystkie serie na górnym zakresie przy RIR ≥2 -> +krok i powrót do dolnego zakresu.
+// Podwójna progresja: wszystkie serie na górnym zakresie przy RIR nie niższym niż w planie -> +krok i powrót do dolnego zakresu.
+const rirNeed = rir => (rir === '' ? 0 : (String(rir ?? '').match(/\d+/) ? +String(rir).match(/\d+/)[0] : 2)); // dolna granica widełek RIR
 function progression(it, last) {
   if (!last) return null;
+  const need = rirNeed(it.rir);
   const top = last.sets.length >= it.sets && last.sets.every(s => s.r >= it.repMax);
-  const hard = last.sets.some(s => s.x != null && s.x < 2);
-  return { up: top && !hard, blocked: top && hard };
+  const hard = last.sets.some(s => s.x != null && s.x < need);
+  return { up: top && !hard, blocked: top && hard, need };
 }
+// ciężar „od trenera”: jednorazowo, dopóki nie było sesji tego ćwiczenia po zmianie planu
+const usesTrainer = (it, date) => it.tw != null && !!state.planAt && !sessionsFor(it.exId).some(x => x.date >= state.planAt && x.date < date);
 function suggestSet(it, i, date) {
   const ex = exById(it.exId), last = lastSession(it.exId, date);
+  if (usesTrainer(it, date)) return { w: it.tw, r: it.repMin, x: null, d: false };
   if (!last) return { w: ex?.start || 0, r: it.repMin, x: null, d: false };
   const b = last.sets[Math.min(i, last.sets.length - 1)], step = ex?.unit === 'm' ? 5 : 1;
   if (progression(it, last).up) return { w: b.w + exInc(it.exId), r: it.repMin, x: null, d: false };
@@ -301,7 +310,10 @@ function warmup(w) { // ogólne punkty rozgrzewki dnia
   return PLAN_WARM[w.name] || (w.type === 'run' ? ['5 min szybkiego marszu', '5 min truchtu'] : [WARM_GEN]);
 }
 function rampFor(l, ei) { // serie wstępne ćwiczenia (stałe, z planu)
-  return exById(l.entries[ei].exId)?.ramp || null;
+  const e = l.entries[ei], t = exById(e.exId)?.ramp;
+  if (!t) return null;
+  const w = e.sets[0]?.w || 0;
+  return t.replace('{w}', w ? `${kg(w)} kg` : '(ciężar roboczy)');
 }
 
 /* ---------- widok dnia ---------- */
@@ -310,10 +322,11 @@ function exCard(l, w, ei, live) {
   const it = w?.items.find(i => i.exId === e.exId) || { exId: e.exId, sets: e.sets.length, repMin: 5, repMax: 10 };
   const last = lastSession(e.exId, date), pr = progression(it, last), u = unitOf(e.exId);
   let hint, hc = '';
-  if (!last) hint = ex?.start ? `Pierwszy raz – punkt startowy z planu: ${kg(ex.start)} kg. Dopasuj do siebie (RIR 2–3).` : 'Pierwszy raz – dobierz ciężar tak, by zostało RIR 2–3.';
-  else if (pr.up) { hint = `↑ Wszystkie serie na górze zakresu przy RIR ≥2 – dziś +${kg(exInc(e.exId))} kg`; hc = 'up'; }
-  else if (pr.blocked) hint = 'Górny zakres był, ale RIR <2 – zostań przy tym ciężarze, wróć do RIR 2–3.';
-  else hint = `Cel: ${it.repMax} ${u} we wszystkich seriach przy RIR ≥2, potem podnieś ciężar`;
+  if (usesTrainer(it, date)) hint = `Ciężar od trenera: ${it.tw ? kg(it.tw) + ' kg' : 'masa ciała'} (jednorazowo). Dopasuj do siebie – dalej progresja liczy się z Twoich wyników.`;
+  else if (!last) hint = ex?.start ? `Pierwszy raz – punkt startowy z planu: ${kg(ex.start)} kg. Dopasuj do siebie (RIR ${it.rir || '2–3'}).` : `Pierwszy raz – dobierz ciężar tak, by zostało RIR ${it.rir || '2–3'}.`;
+  else if (pr.up) { hint = `↑ Wszystkie serie na górze zakresu przy RIR ≥${pr.need} – dziś +${kg(exInc(e.exId))} kg`; hc = 'up'; }
+  else if (pr.blocked) hint = `Górny zakres był, ale RIR <${pr.need} – zostań przy tym ciężarze${it.rir ? `, wróć do RIR ${it.rir}` : ''}.`;
+  else hint = `Cel: ${it.repMax} ${u} we wszystkich seriach${pr.need > 0 ? ` przy RIR ≥${pr.need}` : ''}, potem podnieś ciężar`;
   if (stagnant(e.exId, date)) hint += ' · ⚠️ 3 sesje bez progresu: zmień zakres/wariant albo zrób deload.';
   const prev = last ? `Ostatnio (${shortDate(last.date)}): ${last.sets.map(s => `${kg(s.w)}×${s.r}${s.x != null ? ` @${s.x}` : ''}`).join(', ')}` : '';
   const rows = e.sets.map((s, si) => `<div class="set ${s.d ? 'done' : ''}"><span>${si + 1}</span>
@@ -330,13 +343,21 @@ function exCard(l, w, ei, live) {
 const addExSel = l => `<div class="card"><div class="f" style="margin:0"><label>Dodaj ćwiczenie do tego treningu</label>
   <select data-act="addEx"><option value="">wybierz…</option>${state.exercises.filter(e => !l.entries.some(x => x.exId === e.id)).map(e => `<option value="${e.id}">${esc(e.name)}</option>`).join('')}</select></div></div>`;
 
+function groupsOf(l, w) { // kolejne ćwiczenia z tą samą grupą (pair) łączą się w jeden krok
+  const g = [];
+  l.entries.forEach((e, i) => {
+    const pair = w.items.find(it => it.exId === e.exId)?.pair, last = g[g.length - 1];
+    if (pair && last && last.pair === pair) last.idx.push(i); else g.push({ pair, idx: [i] });
+  });
+  return g;
+}
 function viewStrength(l, w) {
   const n = l.entries.length, vol = l.entries.reduce((a, e) => a + volume(e.sets.filter(s => s.d)), 0);
   const mode = l.status === 'live' ? 'live' : (l.status === 'done' || logDone(l)) ? 'sum' : 'pre';
   if (mode === 'pre') {
     const rows = l.entries.map((e, ei) => {
       const it = w.items.find(i => i.exId === e.exId), s = e.sets[0], ex = exById(e.exId), last = lastSession(e.exId, l.date), u = unitOf(e.exId);
-      return `<div class="pre"><div class="row sp"><b>${esc(ex?.name || '?')}</b><small>${it ? `${it.sets}×${it.repMin}${it.repMax !== it.repMin ? '–' + it.repMax : ''}${it.rir ? ` · RIR ${it.rir}` : ''}` : ''}</small></div>
+      return `<div class="pre"><div class="row sp"><b>${esc(ex?.name || '?')}${it?.pair ? ' <span class="chip up">⇄ superseria</span>' : ''}</b><small>${it ? `${it.sets}×${it.repMin}${it.repMax !== it.repMin ? '–' + it.repMax : ''}${it.rir ? ` · RIR ${it.rir}` : ''}` : ''}</small></div>
         ${last ? `<small class="muted">Ostatnio (${shortDate(last.date)}): ${last.sets.map(x => `${kg(x.w)}×${x.r}`).join(', ')}</small>` : ''}
         <div class="ed3p"><label>serie<input inputmode="numeric" data-f="ps" data-e="${ei}" value="${e.sets.length}"></label>
         <label>${ex?.bw ? 'kg (puste = masa ciała)' : 'kg'}<input inputmode="decimal" data-f="pw" data-e="${ei}" value="${s.w ? kg(s.w) : ''}"></label>
@@ -356,18 +377,21 @@ function viewStrength(l, w) {
       <button class="big" data-act="resume">Wznów / edytuj wyniki</button>
       <div class="btns"><button class="dng" data-act="discard">🗑 Usuń ten trening z historii</button></div>`;
   }
-  // live
-  const step = Math.max(0, Math.min(n + 1, l.step || 0));
-  const chips = `<div class="steps">${['🔥', ...l.entries.map((_, i) => i + 1)].map((t, i) => `<button class="${i === step ? 'on' : ''} ${i > 0 && l.entries[i - 1].sets.every(s => s.d) ? 'ok' : ''}" data-act="step" data-i="${i}">${t}</button>`).join('')}</div>`;
+  // live: krok = ćwiczenie albo para (superseria) wyświetlana jako dwie karty
+  const G = groupsOf(l, w), ng = G.length, step = Math.max(0, Math.min(ng + 1, l.step || 0));
+  const chips = `<div class="steps">${['🔥', ...G.map((_, i) => i + 1)].map((t, i) => `<button class="${i === step ? 'on' : ''} ${i > 0 && G[i - 1].idx.every(k => l.entries[k].sets.every(s => s.d)) ? 'ok' : ''}" data-act="step" data-i="${i}">${t}</button>`).join('')}</div>`;
   let main;
   if (step === 0) {
     main = `<section class="card"><h3>🔥 Rozgrzewka – ${esc(w.name)}</h3>
       ${warmup(w).map((t, i) => `<div class="wu ${l.wu?.['g' + i] ? 'on' : ''}" data-act="wuTog" data-k="g${i}"><i></i><span>${esc(t)}</span></div>`).join('')}
       <p class="muted" style="margin:10px 0 0">Serie wstępne do ciężaru roboczego zobaczysz przy każdym z pierwszych ćwiczeń.</p></section>`;
-  } else if (step <= n) main = exCard(l, w, step - 1, true) + (step === n ? addExSel(l) : '');
-  else main = `<section class="card"><h3>Koniec treningu 💪</h3><p class="muted">Objętość: <b>${Math.round(vol)}</b> kg</p></section>`;
-  const nxt = step < n ? `Dalej: ${esc(exById(l.entries[step].exId)?.name || '')} →` : step === n ? 'Zakończ trening ✓' : 'Zapisz i zamknij ✓';
-  return `${chips}${main}<div class="btns">${step > 0 ? `<button data-act="step" data-i="${step - 1}">← Wstecz</button>` : ''}<button class="pri" data-act="${step < n ? 'step' : 'finish'}" data-i="${step + 1}">${nxt}</button></div>
+  } else if (step <= ng) {
+    const g = G[step - 1];
+    main = (g.idx.length > 1 ? banner('', '⇄ Superseria: ćwicz naprzemiennie (A, B, A, B…), po każdej serii przerwa wg timera. Nadmiarowe serie jednego ćwiczenia dokończ osobno.') : '') + g.idx.map(k => exCard(l, w, k, true)).join('') + (step === ng ? addExSel(l) : '');
+  } else main = `<section class="card"><h3>Koniec treningu 💪</h3><p class="muted">Objętość: <b>${Math.round(vol)}</b> kg</p></section>`;
+  const names = g => g.idx.map(k => exById(l.entries[k].exId)?.name || '').join(' + ');
+  const nxt = step < ng ? `Dalej: ${esc(names(G[step]))} →` : step === ng ? 'Zakończ trening ✓' : 'Zapisz i zamknij ✓';
+  return `${chips}${main}<div class="btns">${step > 0 ? `<button data-act="step" data-i="${step - 1}">← Wstecz</button>` : ''}<button class="pri" data-act="${step < ng ? 'step' : 'finish'}" data-i="${step + 1}">${nxt}</button></div>
     <div class="btns" style="margin-top:18px">${logDone(l) ? '<button data-act="stop">Przerwij – zachowaj wyniki</button>' : ''}<button class="dng" data-act="discard">${logDone(l) ? '🗑 Odrzuć trening' : '↩ Cofnij start'}</button></div>`;
 }
 
@@ -648,7 +672,10 @@ const A = {
     s.d = !s.d;
     commit(l);
     render();
-    if (s.d) startTimer(wById(l.wid)?.items.find(i => i.exId === e.exId)?.rest || state.settings.rest);
+    if (s.d) {
+      const r = wById(l.wid)?.items.find(i => i.exId === e.exId)?.rest;
+      if (r !== 0) startTimer(r || state.settings.rest);
+    }
   },
   addSet: el => {
     const l = getLog(ui.date), e = l.entries[+el.dataset.e], p = e.sets[e.sets.length - 1];
