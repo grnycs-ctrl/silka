@@ -35,7 +35,7 @@ const parseTime = s => { // "25:30", "1:05:00" lub samo "25" (minuty) -> sekundy
 
 /* ---------- plan treningowy ---------- */
 // [klucz, nazwa, wzorzec, ciężar startowy, krok progresji, opcje]
-const PLAN_V = 3; // zmiana numeru nadpisuje ćwiczenia i treningi planu u użytkownika ze starszą wersją
+const PLAN_V = 4; // zmiana numeru nadpisuje ćwiczenia i treningi planu u użytkownika ze starszą wersją
 // [klucz, nazwa, wzorzec, ciężar startowy, krok progresji, opcje: bw, unit, ramp (serie wstępne; {w} = ciężar roboczy), alias (stare nazwy)]
 const PLAN_EX = [
   ['squat', 'Przysiad ze sztangą na plecach', 'legs', 60, 5, { ramp: '20 kg × 8 → 30 kg × 5 → 40 kg × 3 → 50 kg × 2 → robocze {w}' }],
@@ -56,15 +56,16 @@ const PLAN_EX = [
   ['inc', 'Wyciskanie hantli na skosie 30° (chwyt neutralny)', 'push', 22.5, 2.5, { alias: ['Wyciskanie hantli na skosie dodatnim 30° (chwyt neutralny)'] }],
   ['lpd', 'Ściąganie drążka chwytem neutralnym', 'pull', 50, 2.5],
   ['allah', 'Allahy', 'core', 40, 2.5],
+  ['lp', 'Wypychanie nóg na suwnicy', 'legs', 0, 5],
   ['legext', 'Wyprost nóg na maszynie (opcjonalnie)', 'legs', 0, 2.5],
 ];
 // pozycje: [klucz, serie, od, do, RIR, przerwa s (0 = bez timera), grupa superserii, ciężar od trenera (jednorazowo)]
 const PLAN_W = [
   { name: 'Trening A', rot: 'A', note: 'Przysiad · wyciskanie · podciąganie · RDL. Ok. 75–85 min. Pary 5, 6 robisz naprzemiennie (superseria). Opcjonalnie na końcu: wyprost nóg na maszynie 2×10–15, RIR 0–1.',
     items: [['squat', 4, 5, 6, '2', 180, '', 60], ['bench', 3, 4, 6, '2', 150, '', 80], ['benchb', 1, 8, 10, '2', 0, '', 72.5], ['pu', 3, 6, 8, '2', 120, '', 0], ['rdl', 3, 6, 8, '2–3', 120, '', 65],
-      ['curl', 3, 8, 12, '1', 60, '5', 55], ['lr', 3, 10, 15, '0–1', 60, '5', 10], ['tri', 2, 10, 15, '0–1', 60, '6', 30], ['bic', 2, 10, 15, '0–1', 60, '6', 12.5], ['fp', 2, 15, 20, '1–2', 60, '', 25], ['carry', 2, 30, 40, '', 60, '', 25]] },
+      ['curl', 3, 8, 12, '1', 60, '5', 55], ['lr', 3, 10, 15, '0–1', 60, '5', 10], ['tri', 2, 10, 15, '0–1', 60, '6', 30], ['bic', 2, 10, 15, '0–1', 60, '6', 12.5], ['fp', 2, 15, 20, '1–2', 60, '', 25], ['allah', 3, 10, 12, '0–1', 60, '', 40]] },
   { name: 'Trening B', rot: 'B', note: 'Martwy ciąg · wyciskanie nad głowę · plecy · nogi. Para 7 (uginanie nóg + wznosy) naprzemiennie: dwie pary, dwie ostatnie serie wznosów osobno.',
-    items: [['trap', 3, 4, 5, '2', 180, '', 100], ['ohp', 3, 6, 8, '1–2', 120, '', 22.5], ['row', 4, 10, 12, '1', 120, '', 40], ['bulg', 3, 8, 10, '1–2', 90, '', 15], ['inc', 4, 10, 12, '1', 120, '', 22.5], ['lpd', 3, 10, 12, '1', 120, '', 50],
+    items: [['trap', 3, 4, 5, '2', 180, '', 100], ['ohp', 3, 6, 8, '1–2', 120, '', 22.5], ['row', 4, 10, 12, '1', 120, '', 40], ['lp', 3, 8, 12, '1–2', 120, ''], ['inc', 4, 10, 12, '1', 120, '', 22.5], ['lpd', 3, 10, 12, '1', 120, '', 50],
       ['curl', 2, 10, 12, '0–1', 60, '7', 60], ['lr', 4, 12, 15, '0–1', 60, '7', 10], ['allah', 3, 10, 12, '0–1', 60, '', 40]] },
   { name: 'Wersja łączona (tydzień z 1 oknem)', note: '1 bój nóg, 1 pchanie, 1 ciągnięcie, RIR 1–2, plus noszenie. Nie przesuwa kolejki A/B.',
     items: [['squat', 3, 5, 6, '1–2', 180], ['bench', 3, 4, 6, '1–2', 150], ['pu', 3, 6, 8, '1–2', 120], ['carry', 2, 30, 40, '', 60]] },
@@ -97,6 +98,21 @@ function applyPlan(s, force) { // force: nadpisz ćwiczenia i treningi planu (pr
   if (force) s.planAt = today(); // od tej daty ciężary „od trenera” obowiązują jednorazowo
   return s;
 }
+function migratePlan4(s) { // A: suitcase carry -> allahy, B: przysiad bułgarski -> wypychanie nóg; reszta planu i ciężary bez zmian
+  const byName = n => s.exercises.find(e => e.name === n);
+  const ensureEx = (name, pat, start, inc) => byName(name) || (s.exercises.push({ id: uid(), name, pat, start, inc }), byName(name));
+  const allah = ensureEx('Allahy', 'core', 40, 2.5), lp = ensureEx('Wypychanie nóg na suwnicy', 'legs', 0, 5);
+  const swap = (wName, oldName, item) => {
+    const w = s.workouts.find(x => x.name === wName);
+    if (!w || w.items.some(x => x.exId === item.exId)) return;
+    const old = byName(oldName), i = old ? w.items.findIndex(x => x.exId === old.id) : -1;
+    if (i >= 0) w.items[i] = item; else w.items.push(item);
+  };
+  swap('Trening A', 'Suitcase carry (metry)', { exId: allah.id, sets: 3, repMin: 10, repMax: 12, rir: '0–1', rest: 60 });
+  swap('Trening B', 'Przysiad bułgarski z hantlami (kg na rękę, na nogę)', { exId: lp.id, sets: 3, repMin: 8, repMax: 12, rir: '1–2', rest: 120 });
+  s.planV = 4;
+  return s;
+}
 function seed() {
   return applyPlan({
     v: 2, exercises: [], workouts: [], schedule: [null, null, null, null, null, null, null], overrides: {}, logs: [],
@@ -106,7 +122,8 @@ function seed() {
 }
 function fill(s) {
   s.v = 2;
-  if (s.planV !== PLAN_V) applyPlan(s, true);
+  if (!s.planV || s.planV < 3) applyPlan(s, true); // pełna wymiana planu (nowe ćwiczenia i ciężary od trenera)
+  else if (s.planV < 4) migratePlan4(s);
   s.shifts ||= {}; s.body ||= {}; s.overrides ||= {};
   s.schedule ||= [null, null, null, null, null, null, null];
   s.settings = { inc: 2.5, rest: 120, height: 187, ...s.settings };
